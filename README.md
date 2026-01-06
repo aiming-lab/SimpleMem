@@ -303,7 +303,7 @@ If you use SimpleMem in your research, please cite:
 ```bibtex
 @article{simplemem2025,
   title={SimpleMem: Efficient Lifelong Memory for LLM Agents},
-  author={Liu, Jiaqi and Su, Yaofeng and Xia, Peng and Zhou, Yiyang and Han, Siwei and Ding, Mingyu and Yao, Huaxiu},
+  author={Liu, Jiaqi and Su, Yaofeng and Xia, Peng and Han, Siwei and Zheng, Zeyu and Xie, Cihang and Ding, Mingyu and Yao, Huaxiu},
   journal={arXiv preprint arXiv:XXXX.XXXXX},
   year={2025},
   url={https://github.com/aiming-lab/SimpleMem}
