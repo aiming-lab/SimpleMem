@@ -7,7 +7,7 @@
 </p>
 
 
-[![Paper](https://img.shields.io/badge/📄_Paper-arXiv-b31b1b?style=for-the-badge)](https://arxiv.org)
+[![Paper](https://img.shields.io/badge/📄_Paper-arXiv-b31b1b?style=for-the-badge)](https://arxiv.org/abs/2601.02553)
 [![GitHub](https://img.shields.io/badge/💻_GitHub-SimpleMem-181717?logo=github&style=for-the-badge)](https://github.com/aiming-lab/SimpleMem)
 [![Project Page](https://img.shields.io/badge/🌐_Project_Page-blue?style=for-the-badge)](https://aiming-lab.github.io/SimpleMem-Page)
 [![License](https://img.shields.io/badge/📜_License-MIT-green?style=for-the-badge)](LICENSE)
@@ -301,8 +301,8 @@ If you use SimpleMem in your research, please cite:
 ```bibtex
 @article{simplemem2025,
   title={SimpleMem: Efficient Lifelong Memory for LLM Agents},
-  author={Liu, Jiaqi and Su, Yaofeng and Xia, Peng and Han, Siwei and Zheng, Zeyu and Xie, Cihang and Ding, Mingyu and Yao, Huaxiu},
-  journal={arXiv preprint arXiv:XXXX.XXXXX},
+  author={Liu, Jiaqi and Su, Yaofeng and Xia, Peng and Zhou, Yiyang and Han, Siwei and  Zheng, Zeyu and Xie, Cihang and Ding, Mingyu and Yao, Huaxiu},
+  journal={arXiv preprint arXiv:2601.02553},
   year={2025},
   url={https://github.com/aiming-lab/SimpleMem}
 }
