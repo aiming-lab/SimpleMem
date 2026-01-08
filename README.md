@@ -202,7 +202,7 @@ $$k_{dyn} = \lfloor k_{base} \cdot (1 + \delta \cdot C_q) \rfloor$$
 ## 📦 Installation
 
 ### 📋 Requirements
-- 🐍 Python 3.8+
+- 🐍 Python 3.10
 - 🔑 OpenAI-compatible API (OpenAI, Qwen, Azure OpenAI, etc.)
 
 ### 🛠️ Setup
