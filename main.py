@@ -44,21 +44,22 @@ class SimpleMemSystem:
         Initialize system
 
         Args:
-        - api_key: OpenAI API key
-        - model: LLM model name
-        - base_url: Custom OpenAI base URL (for compatible APIs)
-        - db_path: Database path
-        - table_name: Memory table name (for parallel processing)
-        - clear_db: Whether to clear existing database
-        - enable_thinking: Enable deep thinking mode (for Qwen and compatible models)
-        - use_streaming: Enable streaming responses
-        - enable_planning: Enable multi-query planning for retrieval (None=use config default)
-        - enable_reflection: Enable reflection-based additional retrieval (None=use config default)
-        - max_reflection_rounds: Maximum number of reflection rounds (None=use config default)
-        - enable_parallel_processing: Enable parallel processing for memory building (None=use config default)
-        - max_parallel_workers: Maximum number of parallel workers for memory building (None=use config default)
-        - enable_parallel_retrieval: Enable parallel processing for retrieval queries (None=use config default)
-        - max_retrieval_workers: Maximum number of parallel workers for retrieval (None=use config default)
+        - api_key: OpenAI API key   API-KEY
+        - model: LLM model name  模型
+        - base_url: Custom OpenAI base URL (for compatible APIs)  API的URL
+        - db_path: Database path   向量库db路径
+        - table_name: Memory table name (for parallel processing) 表名 ,记忆表for 并行处理
+         TODO ： 什么表
+        - clear_db: Whether to clear existing database   是否清理表 bool
+        - enable_thinking: Enable deep thinking mode (for Qwen and compatible models) 是否think-Qwen模型
+        - use_streaming: Enable streaming responses 流式生成输出
+        - enable_planning: Enable multi-query planning for retrieval (None=use config default)  是否使用plan
+        - enable_reflection: Enable reflection-based additional retrieval (None=use config default) 是否使用 reflection
+        - max_reflection_rounds: Maximum number of reflection rounds (None=use config default)  最大reflextion 轮次
+        - enable_parallel_processing: Enable parallel processing for memory building (None=use config default)  是否并行处理
+        - max_parallel_workers: Maximum number of parallel workers for memory building (None=use config default) 最大并行workers
+        - enable_parallel_retrieval: Enable parallel processing for retrieval queries (None=use config default)  是否并行检索
+        - max_retrieval_workers: Maximum number of parallel workers for retrieval (None=use config default)   最大检索workers 
         """
         print("=" * 60)
         print("Initializing SimpleMem System")
@@ -84,14 +85,14 @@ class SimpleMemSystem:
             self.vector_store.clear()
 
         # Initialize three major modules
-        self.memory_builder = MemoryBuilder(
+        self.memory_builder = MemoryBuilder(  # MemoryBuilder
             llm_client=self.llm_client,
             vector_store=self.vector_store,
             enable_parallel_processing=enable_parallel_processing,
             max_parallel_workers=max_parallel_workers
         )
 
-        self.hybrid_retriever = HybridRetriever(
+        self.hybrid_retriever = HybridRetriever( #  HybridRetriever
             llm_client=self.llm_client,
             vector_store=self.vector_store,
             enable_planning=enable_planning,
@@ -101,7 +102,7 @@ class SimpleMemSystem:
             max_retrieval_workers=max_retrieval_workers
         )
 
-        self.answer_generator = AnswerGenerator(
+        self.answer_generator = AnswerGenerator( #  AnswerGenerator TODO: 和前面
             llm_client=self.llm_client
         )
 
