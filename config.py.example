@@ -28,10 +28,17 @@ OPENAI_BASE_URL = None
 # Examples: "gpt-4.1-mini", "gpt-4.1", "qwen3-max", "qwen-plus-2025-07-28"
 LLM_MODEL = "gpt-4.1-mini"
 
-# Embedding model (local, no API needed)
-EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
-EMBEDDING_DIMENSION = 1024  # For Qwen3: up to 1024, supports 32-1024
-EMBEDDING_CONTEXT_LENGTH = 32768  # Qwen3 supports 32k context
+# Embedding configuration
+# Set USE_REMOTE_EMBEDDING=True to call remote embedding API (recommended)
+# Set to False to load local SentenceTransformers model (requires GPU/CPU weights)
+USE_REMOTE_EMBEDDING = True
+
+# Remote embedding settings (defaults inherit LLM settings)
+EMBEDDING_API_KEY = OPENAI_API_KEY
+EMBEDDING_BASE_URL = OPENAI_BASE_URL
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # Example remote model
+EMBEDDING_DIMENSION = 1024  # Must match remote model's output size
+EMBEDDING_CONTEXT_LENGTH = 32768  # Optional: reference context length
 
 
 # ============================================================================
