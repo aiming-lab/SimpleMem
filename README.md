@@ -18,6 +18,7 @@
 ---
 
 ## 🔥 News
+- **[01/19/2026]** **Added Local Memory Storage for SimpleMem Skill!** 💾 SimpleMem Skill now supports local memory storage, enabling seamless memory retention and management directly within Claude Skills.
 - **[01/18/2026]** **SimpleMem now supports Claude Skills!** 🚀 Use SimpleMem in claude.ai to remember long-term information and project history across conversations. Register at [mcp.simplemem.cloud](https://mcp.simplemem.cloud), add the domain to Claude's network whitelist, **configure with your token in the skill file**, and import the skill!
 - **[01/14/2026]** **SimpleMem MCP Server is now LIVE and Open Source!** 🎉 Experience SimpleMem as a cloud-hosted memory service at [mcp.simplemem.cloud](https://mcp.simplemem.cloud). Easily integrate with your favorite chat platforms (LM Studio, Cherry Studio) and AI agents (Cursor, Claude Desktop) using the **Streamable HTTP** MCP protocol. The MCP implementation features production-ready optimizations including multi-tenant user isolation, faster response times, and enhanced security. [View MCP Documentation →](MCP/README.md)
 - **[01/08/2026]** We've set up a Discord server and WeChat group to make it easier to collaborate and exchange ideas on this project. Welcome to join the Group to share your thoughts, ask questions, or contribute your ideas! 🔥 Join our [Discord](https://discord.gg/KA2zC32M) and [WeChat Group](fig/wechat_logo2.jpg) Now!

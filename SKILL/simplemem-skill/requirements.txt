@@ -1,0 +1,6 @@
+# Core dependencies for SimpleMem Skill
+lancedb>=0.4.0
+pyarrow>=14.0.0
+requests>=2.31.0
+numpy>=1.24.0
+dateparser>=1.2.2
