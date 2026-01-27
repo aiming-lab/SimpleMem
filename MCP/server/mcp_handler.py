@@ -11,10 +11,12 @@ from dataclasses import dataclass, asdict
 
 from .auth.models import User, MemoryEntry
 from .database.vector_store import MultiTenantVectorStore
-from .integrations.openrouter import OpenRouterClientManager
 from .core.memory_builder import MemoryBuilder
 from .core.retriever import Retriever
 from .core.answer_generator import AnswerGenerator
+
+# Type alias for client manager (supports both OpenRouter and Ollama)
+ClientManager = object  # Duck-typed: can be OpenRouterClientManager or OllamaClientManager
 
 
 @dataclass
@@ -57,7 +59,7 @@ class MCPHandler:
         user: User,
         api_key: str,
         vector_store: MultiTenantVectorStore,
-        client_manager: OpenRouterClientManager,
+        client_manager: ClientManager,
         settings: Any,
     ):
         self.user = user
@@ -78,7 +80,7 @@ class MCPHandler:
     def _get_memory_builder(self) -> MemoryBuilder:
         if not self._memory_builder:
             self._memory_builder = MemoryBuilder(
-                openrouter_client=self._get_client(),
+                llm_client=self._get_client(),
                 vector_store=self.vector_store,
                 table_name=self.user.table_name,
                 window_size=self.settings.window_size,
@@ -90,7 +92,7 @@ class MCPHandler:
     def _get_retriever(self) -> Retriever:
         if not self._retriever:
             self._retriever = Retriever(
-                openrouter_client=self._get_client(),
+                llm_client=self._get_client(),
                 vector_store=self.vector_store,
                 table_name=self.user.table_name,
                 semantic_top_k=self.settings.semantic_top_k,
@@ -105,7 +107,7 @@ class MCPHandler:
     def _get_answer_generator(self) -> AnswerGenerator:
         if not self._answer_generator:
             self._answer_generator = AnswerGenerator(
-                openrouter_client=self._get_client(),
+                llm_client=self._get_client(),
                 temperature=self.settings.llm_temperature,
             )
         return self._answer_generator

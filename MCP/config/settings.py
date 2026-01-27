@@ -3,9 +3,25 @@ Settings configuration for SimpleMem MCP Server
 """
 
 import os
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 from functools import lru_cache
+
+
+def _load_env_file():
+    """Load .env file manually if it exists"""
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_env_file()
 
 
 @dataclass
@@ -45,11 +61,37 @@ class Settings:
         "./data/users.db"
     ))
 
-    # OpenRouter Configuration
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    llm_model: str = "openai/gpt-4.1-mini"
-    embedding_model: str = "qwen/qwen3-embedding-4b"
-    embedding_dimension: int = 2560  # Custom embedding dimension
+    # LLM Provider Configuration
+    llm_provider: str = field(default_factory=lambda: os.getenv(
+        "LLM_PROVIDER",
+        "openrouter"  # Options: "openrouter", "ollama"
+    ))
+
+    # OpenRouter Configuration (used when llm_provider is "openrouter")
+    openrouter_base_url: str = field(default_factory=lambda: os.getenv(
+        "OPENROUTER_BASE_URL",
+        "https://openrouter.ai/api/v1"
+    ))
+
+    # Ollama Configuration (used when llm_provider is "ollama")
+    ollama_base_url: str = field(default_factory=lambda: os.getenv(
+        "OLLAMA_BASE_URL",
+        "http://localhost:11434/v1"
+    ))
+
+    # Common LLM Configuration
+    llm_model: str = field(default_factory=lambda: os.getenv(
+        "LLM_MODEL",
+        "openai/gpt-4.1-mini" # "qwen3:4b-instruct" Default model name
+    ))
+    embedding_model: str = field(default_factory=lambda: os.getenv(
+        "EMBEDDING_MODEL",
+        "qwen3-embedding:4b"  # Default embedding model
+    ))
+    embedding_dimension: int = field(default_factory=lambda: int(os.getenv(
+        "EMBEDDING_DIMENSION",
+        "2560"  # Default: 2560 for qwen3-embedding:4b, 768 for nomic-embed-text
+    )))
 
     # Memory Building Configuration
     window_size: int = 20

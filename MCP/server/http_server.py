@@ -35,6 +35,7 @@ from .auth.models import User
 from .database.user_store import UserStore
 from .database.vector_store import MultiTenantVectorStore
 from .integrations.openrouter import OpenRouterClient, OpenRouterClientManager
+from .integrations.ollama import OllamaClient, OllamaClientManager
 from .mcp_handler import MCPHandler
 
 import sys
@@ -100,11 +101,20 @@ token_manager = TokenManager(
     encryption_key=settings.encryption_key,
     expiration_days=settings.jwt_expiration_days,
 )
-client_manager = OpenRouterClientManager(
-    base_url=settings.openrouter_base_url,
-    llm_model=settings.llm_model,
-    embedding_model=settings.embedding_model,
-)
+
+# Initialize client manager based on provider
+if settings.llm_provider == "ollama":
+    client_manager = OllamaClientManager(
+        base_url=settings.ollama_base_url,
+        llm_model=settings.llm_model,
+        embedding_model=settings.embedding_model,
+    )
+else:  # Default to OpenRouter
+    client_manager = OpenRouterClientManager(
+        base_url=settings.openrouter_base_url,
+        llm_model=settings.llm_model,
+        embedding_model=settings.embedding_model,
+    )
 
 # Store active MCP handlers per user (legacy)
 _mcp_handlers: dict[str, MCPHandler] = {}
@@ -278,27 +288,44 @@ app.add_middleware(
 
 @app.post("/api/auth/register", response_model=RegisterResponse)
 async def register(request: RegisterRequest):
-    """Register a new user with OpenRouter API key"""
+    """Register a new user with API key (or placeholder for Ollama)"""
     try:
-        # Validate API key with OpenRouter
-        client = OpenRouterClient(
-            api_key=request.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
-        )
-        is_valid, error = await client.verify_api_key()
-        await client.close()
+        api_key = request.openrouter_api_key
 
-        if not is_valid:
-            return RegisterResponse(
-                success=False,
-                error=f"Invalid OpenRouter API key: {error}",
+        # For Ollama, we don't need a real API key, use a placeholder
+        if settings.llm_provider == "ollama":
+            if not api_key or api_key == "":
+                # Use a placeholder key for Ollama
+                api_key = "ollama-placeholder-key"
+
+            # Verify Ollama is accessible
+            client = OllamaClient(base_url=settings.ollama_base_url)
+            is_valid, error = await client.verify_api_key()
+            await client.close()
+
+            if not is_valid:
+                return RegisterResponse(
+                    success=False,
+                    error=f"Cannot connect to Ollama: {error}",
+                )
+        else:
+            # For OpenRouter, validate the API key
+            client = OpenRouterClient(
+                api_key=api_key,
+                base_url=settings.openrouter_base_url,
             )
+            is_valid, error = await client.verify_api_key()
+            await client.close()
+
+            if not is_valid:
+                return RegisterResponse(
+                    success=False,
+                    error=f"Invalid OpenRouter API key: {error}",
+                )
 
         # Create user
         user = User()
-        user.openrouter_api_key_encrypted = token_manager.encrypt_api_key(
-            request.openrouter_api_key
-        )
+        user.openrouter_api_key_encrypted = token_manager.encrypt_api_key(api_key)
 
         # Save user
         user_store.create_user(user)
@@ -498,10 +525,12 @@ async def mcp_post_endpoint(
     # Get existing session
     session = await get_session(mcp_session_id)
     if not session:
-        raise HTTPException(
-            status_code=404,
-            detail="Session not found or expired. Send new InitializeRequest.",
-        )
+        # Auto-create new session for expired sessions (MCP client compatibility)
+        # This allows MCP clients to seamlessly recover from expired sessions
+        session = await get_or_create_session(user, api_key)
+        session.initialized = True
+        # Optionally log the session recovery
+        print(f"Auto-recovered expired session for user {user.user_id}, new session_id: {session.session_id}")
 
     # Verify session belongs to this user
     if session.user_id != user.user_id:
