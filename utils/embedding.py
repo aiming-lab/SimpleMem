@@ -12,17 +12,62 @@ class EmbeddingModel:
     """
     Embedding model using SentenceTransformers (supports Qwen3 and other models)
     """
-    def __init__(self, model_name: str = None, use_optimization: bool = True):
+    def __init__(
+        self,
+        model_name: str = None,
+        use_optimization: bool = True,
+        use_remote: Optional[bool] = None,
+    ):
         self.model_name = model_name or config.EMBEDDING_MODEL
         self.use_optimization = use_optimization
-        
-        print(f"Loading embedding model: {self.model_name}")
-        
-        # Check if it's a Qwen3 model (through SentenceTransformers)
-        if self.model_name.startswith("qwen3"):
-            self._init_qwen3_sentence_transformer()
+        self.use_remote = (
+            use_remote
+            if use_remote is not None
+            else getattr(config, "USE_REMOTE_EMBEDDING", False)
+        )
+
+        # Known/expected embedding dimension (can be updated after first remote call)
+        self.dimension = getattr(config, "EMBEDDING_DIMENSION", None)
+
+        self.model_type = None
+        self.supports_query_prompt = False
+
+        print(f"Loading embedding model: {self.model_name} (remote={self.use_remote})")
+
+        if self.use_remote:
+            self._init_remote_embedding()
         else:
-            self._init_standard_sentence_transformer()
+            # Check if it's a Qwen3 model (through SentenceTransformers)
+            if self.model_name.startswith("qwen3"):
+                self._init_qwen3_sentence_transformer()
+            else:
+                self._init_standard_sentence_transformer()
+
+        # Ensure dimension is set for downstream schema building
+        if not self.dimension:
+            raise ValueError("Embedding dimension is not set; check configuration or model.")
+
+    def _init_remote_embedding(self):
+        """Initialize remote embedding client (OpenAI compatible API)."""
+        from openai import OpenAI
+
+        api_key = getattr(config, "EMBEDDING_API_KEY", None) or getattr(
+            config, "OPENAI_API_KEY", None
+        )
+        base_url = getattr(config, "EMBEDDING_BASE_URL", None) or getattr(
+            config, "OPENAI_BASE_URL", None
+        )
+
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+            print(f"Using remote embedding base URL: {base_url}")
+
+        if not api_key:
+            raise ValueError("EMBEDDING_API_KEY/OPENAI_API_KEY is not configured for remote embeddings.")
+
+        self.client = OpenAI(**client_kwargs)
+        self.model_type = "remote"
 
     def _init_qwen3_sentence_transformer(self):
         """Initialize Qwen3 model using SentenceTransformers"""
@@ -104,7 +149,10 @@ class EmbeddingModel:
         """
         if isinstance(texts, str):
             texts = [texts]
-        
+
+        if self.model_type == "remote":
+            return self._encode_remote(texts)
+
         # Use query prompt for Qwen3 models when encoding queries
         if self.model_type == "qwen3_sentence_transformer" and self.supports_query_prompt and is_query:
             return self._encode_with_query_prompt(texts)
@@ -132,6 +180,39 @@ class EmbeddingModel:
         Encode documents (no query prompt)
         """
         return self.encode(documents, is_query=False)
+
+    def _encode_remote(self, texts: List[str]) -> np.ndarray:
+        """Encode texts using remote embedding API."""
+        try:
+            response = self.client.embeddings.create(
+                model=self.model_name,
+                input=texts,
+            )
+
+            # Ensure order by index
+            data = sorted(response.data, key=lambda d: d.index)
+            vectors = [item.embedding for item in data]
+            embeddings = np.array(vectors, dtype=np.float32)
+
+            # Dimension bookkeeping and validation
+            if embeddings.size == 0:
+                raise ValueError("Remote embedding API returned empty embeddings.")
+
+            detected_dim = embeddings.shape[1]
+            if self.dimension and detected_dim != self.dimension:
+                print(
+                    f"Warning: embedding dimension mismatch (config={self.dimension}, remote={detected_dim}); "
+                    "updating to remote dimension."
+                )
+                self.dimension = detected_dim
+            elif not self.dimension:
+                self.dimension = detected_dim
+
+            # Normalize to align with SentenceTransformers behavior
+            return self._normalize_embeddings(embeddings)
+
+        except Exception as e:
+            raise RuntimeError(f"Remote embedding request failed: {e}") from e
     
     def _encode_with_query_prompt(self, texts: List[str]) -> np.ndarray:
         """Encode texts using Qwen3 query prompt"""
@@ -155,3 +236,9 @@ class EmbeddingModel:
             normalize_embeddings=True
         )
         return embeddings
+
+    def _normalize_embeddings(self, embeddings: np.ndarray) -> np.ndarray:
+        """L2-normalize embedding vectors to unit length."""
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        return embeddings / norms
