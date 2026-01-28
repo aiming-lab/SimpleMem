@@ -45,20 +45,24 @@ class HybridRetriever:
         enable_reflection: bool = True,
         max_reflection_rounds: int = 2,
         enable_parallel_retrieval: bool = True,
-        max_retrieval_workers: int = 3
+        max_retrieval_workers: int = 3,
+        cc_alpha: float = None
     ):
         self.llm_client = llm_client
         self.vector_store = vector_store
         self.semantic_top_k = semantic_top_k or config.SEMANTIC_TOP_K
         self.keyword_top_k = keyword_top_k or config.KEYWORD_TOP_K
         self.structured_top_k = structured_top_k or config.STRUCTURED_TOP_K
-        
+
         # Use config values as default if not explicitly provided
         self.enable_planning = enable_planning if enable_planning is not None else getattr(config, 'ENABLE_PLANNING', True)
         self.enable_reflection = enable_reflection if enable_reflection is not None else getattr(config, 'ENABLE_REFLECTION', True)
         self.max_reflection_rounds = max_reflection_rounds if max_reflection_rounds is not None else getattr(config, 'MAX_REFLECTION_ROUNDS', 2)
         self.enable_parallel_retrieval = enable_parallel_retrieval if enable_parallel_retrieval is not None else getattr(config, 'ENABLE_PARALLEL_RETRIEVAL', True)
         self.max_retrieval_workers = max_retrieval_workers if max_retrieval_workers is not None else getattr(config, 'MAX_RETRIEVAL_WORKERS', 3)
+
+        # Convex Combination alpha for adaptive keyword boost
+        self.cc_alpha = cc_alpha if cc_alpha is not None else getattr(config, 'CC_ALPHA', 0.7)
 
     def retrieve(self, query: str, enable_reflection: Optional[bool] = None) -> List[MemoryEntry]:
         """
@@ -108,14 +112,41 @@ class HybridRetriever:
         # Step 4: Merge and deduplicate results
         merged_results = self._merge_and_deduplicate_entries(all_results)
         print(f"[Planning] Found {len(merged_results)} unique results")
-        
-        # Step 5: Optional reflection-based additional retrieval
+
+        # Step 5: Adaptive keyword boost (only when LLM detects exact match terms)
+        use_keyword_boost = information_plan.get("use_keyword_boost", False)
+        exact_match_terms = information_plan.get("exact_match_terms", [])
+
+        if merged_results and use_keyword_boost and exact_match_terms:
+            print(f"[Planning] Keyword boost enabled for terms: {exact_match_terms}")
+
+            # Convert planning results to scored format
+            total = len(merged_results)
+            semantic_with_scores = [
+                (entry, 1.0 - (i / max(total, 1)))
+                for i, entry in enumerate(merged_results)
+            ]
+
+            # Get keyword results with BM25 FTS scores
+            keyword_with_scores = self.vector_store.keyword_search_with_scores(
+                exact_match_terms, top_k=self.keyword_top_k
+            )
+
+            if keyword_with_scores:
+                merged_results = self._convex_combination_fusion(
+                    semantic_with_scores,
+                    keyword_with_scores,
+                    alpha=self.cc_alpha
+                )
+                print(f"[Planning] CC fusion (α={self.cc_alpha}): {len(merged_results)} results")
+
+        # Step 6: Optional reflection-based additional retrieval
         # Use override parameter if provided, otherwise use global setting
         should_use_reflection = enable_reflection if enable_reflection is not None else self.enable_reflection
-        
+
         if should_use_reflection:
             merged_results = self._retrieve_with_intelligent_reflection(query, merged_results, information_plan)
-        
+
         return merged_results
     
     def _retrieve_with_reflection(self, query: str, initial_results: List[MemoryEntry]) -> List[MemoryEntry]:
@@ -417,7 +448,56 @@ Return ONLY the JSON, no other text.
                 merged.append(entry)
         
         return merged
-    
+
+    def _convex_combination_fusion(
+        self,
+        semantic_results: List[tuple],
+        keyword_results: List[tuple],
+        alpha: float = 0.7
+    ) -> List[MemoryEntry]:
+        """
+        Convex Combination (CC) fusion for hybrid retrieval.
+
+        Formula: S_final = α·S_sem + (1-α)·S_kw
+
+        Args:
+            semantic_results: List of (MemoryEntry, score) from semantic search
+            keyword_results: List of (MemoryEntry, score) from keyword search
+            alpha: Weight for semantic scores (default 0.7)
+
+        Returns:
+            List of MemoryEntry sorted by fused score
+        """
+        semantic_scores: Dict[str, float] = {}
+        keyword_scores: Dict[str, float] = {}
+        entry_map: Dict[str, MemoryEntry] = {}
+
+        for entry, score in semantic_results:
+            semantic_scores[entry.entry_id] = score
+            entry_map[entry.entry_id] = entry
+
+        for entry, score in keyword_results:
+            keyword_scores[entry.entry_id] = score
+            if entry.entry_id not in entry_map:
+                entry_map[entry.entry_id] = entry
+
+        all_ids = set(semantic_scores.keys()) | set(keyword_scores.keys())
+
+        fused_scores: Dict[str, float] = {}
+        for entry_id in all_ids:
+            sem_score = semantic_scores.get(entry_id, 0.0)
+            kw_score = keyword_scores.get(entry_id, 0.0)
+
+            if entry_id in semantic_scores and entry_id in keyword_scores:
+                fused_scores[entry_id] = alpha * sem_score + (1 - alpha) * kw_score
+            elif entry_id in semantic_scores:
+                fused_scores[entry_id] = alpha * sem_score
+            else:
+                fused_scores[entry_id] = (1 - alpha) * kw_score
+
+        sorted_ids = sorted(fused_scores.keys(), key=lambda x: fused_scores[x], reverse=True)
+        return [entry_map[entry_id] for entry_id in sorted_ids]
+
     def _check_answer_adequacy(self, query: str, contexts: List[MemoryEntry]) -> str:
         """
         Check if current contexts are sufficient to answer the query
@@ -663,6 +743,7 @@ Think step by step:
 2. What key entities, events, or concepts need to be identified?
 3. What relationships or connections need to be established?
 4. What minimal set of information pieces would be sufficient to answer this question?
+5. Are there technical terms requiring exact lexical matching?
 
 Return your analysis in JSON format:
 ```json
@@ -677,11 +758,20 @@ Return your analysis in JSON format:
     }}
   ],
   "relationships": ["relationship1", "relationship2", ...],
-  "minimal_queries_needed": 2
+  "minimal_queries_needed": 2,
+  "exact_match_terms": [],
+  "use_keyword_boost": false
 }}
 ```
 
-Focus on identifying the minimal essential information needed, not exhaustive details.
+For exact_match_terms, include ONLY terms requiring exact lexical matching:
+- Function/method names: parseJWT, get_user_id
+- Error codes: ECONNREFUSED, CVE-2017-3156
+- Version numbers: v2.1.0, Oracle 12c
+- File names: config.yaml, .env
+
+Set use_keyword_boost=true ONLY if exact_match_terms is non-empty.
+For conversational queries about people/events, leave both fields as defaults.
 
 Return ONLY the JSON, no other text.
 """
@@ -714,7 +804,9 @@ Return ONLY the JSON, no other text.
                 "key_entities": [query],
                 "required_info": [{"info_type": "general", "description": "relevant information", "priority": "high"}],
                 "relationships": [],
-                "minimal_queries_needed": 1
+                "minimal_queries_needed": 1,
+                "exact_match_terms": [],
+                "use_keyword_boost": False
             }
     
     def _generate_targeted_queries(self, original_query: str, information_plan: Dict[str, Any]) -> List[str]:

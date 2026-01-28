@@ -76,6 +76,10 @@ KEYWORD_TOP_K = 5
 # Max entries returned by structured search (metadata filtering)
 STRUCTURED_TOP_K = 5
 
+# Convex Combination alpha for adaptive keyword boost
+# S_final = α·S_semantic + (1-α)·S_keyword
+CC_ALPHA = 0.7
+
 
 # ============================================================================
 # Database Configuration

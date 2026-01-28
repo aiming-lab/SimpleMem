@@ -257,3 +257,55 @@ class VectorStore:
         self._fts_initialized = False
         self._init_table()
         print("Database cleared")
+
+    def keyword_search_with_scores(self, keywords: List[str], top_k: int = 3) -> List[tuple]:
+        """
+        Keyword search using BM25 FTS that returns (MemoryEntry, score) tuples.
+
+        Uses LanceDB native Full-Text Search with BM25 ranking.
+        Scores are normalized to [0, 1] range.
+
+        Returns:
+            List of (MemoryEntry, float) tuples sorted by score (highest first)
+        """
+        try:
+            if not keywords or self.table.count_rows() == 0:
+                return []
+
+            query = " ".join(keywords)
+            results = self.table.search(query).limit(top_k).to_list()
+
+            if not results:
+                return []
+
+            scored_entries = []
+            max_score = 0
+
+            for r in results:
+                score = r.get("_score", 0.0)
+                max_score = max(max_score, score)
+                try:
+                    entry = MemoryEntry(
+                        entry_id=r["entry_id"],
+                        lossless_restatement=r["lossless_restatement"],
+                        keywords=list(r.get("keywords") or []),
+                        timestamp=r.get("timestamp") or None,
+                        location=r.get("location") or None,
+                        persons=list(r.get("persons") or []),
+                        entities=list(r.get("entities") or []),
+                        topic=r.get("topic") or None
+                    )
+                    scored_entries.append((entry, score))
+                except Exception as e:
+                    print(f"Warning: Failed to parse FTS result: {e}")
+                    continue
+
+            # Normalize scores to [0, 1]
+            if max_score > 0:
+                scored_entries = [(entry, score / max_score) for entry, score in scored_entries]
+
+            return scored_entries
+
+        except Exception as e:
+            print(f"Error during keyword search with scores: {e}")
+            return []
