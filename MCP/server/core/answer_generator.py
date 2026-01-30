@@ -7,7 +7,9 @@ Synthesizes answers from retrieved memory contexts using LLM.
 from typing import List, Optional
 
 from ..auth.models import MemoryEntry
-from ..integrations.openrouter import OpenRouterClient
+
+# Type alias for LLM client (supports both OpenRouter and Ollama)
+LLMClient = object  # Duck-typed: can be OpenRouterClient or OllamaClient
 
 
 class AnswerGenerator:
@@ -17,10 +19,10 @@ class AnswerGenerator:
 
     def __init__(
         self,
-        openrouter_client: OpenRouterClient,
+        llm_client: LLMClient,
         temperature: float = 0.1,
     ):
-        self.client = openrouter_client
+        self.client = llm_client
         self.temperature = temperature
 
     async def generate_answer(

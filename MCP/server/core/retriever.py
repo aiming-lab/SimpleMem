@@ -14,8 +14,10 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 
 from ..auth.models import MemoryEntry
-from ..integrations.openrouter import OpenRouterClient
 from ..database.vector_store import MultiTenantVectorStore
+
+# Type alias for LLM client (supports both OpenRouter and Ollama)
+LLMClient = object  # Duck-typed: can be OpenRouterClient or OllamaClient
 
 
 @dataclass
@@ -37,7 +39,7 @@ class Retriever:
 
     def __init__(
         self,
-        openrouter_client: OpenRouterClient,
+        llm_client: LLMClient,
         vector_store: MultiTenantVectorStore,
         table_name: str,
         semantic_top_k: int = 25,
@@ -47,7 +49,7 @@ class Retriever:
         max_reflection_rounds: int = 2,
         temperature: float = 0.1,
     ):
-        self.client = openrouter_client
+        self.client = llm_client
         self.vector_store = vector_store
         self.table_name = table_name
         self.semantic_top_k = semantic_top_k

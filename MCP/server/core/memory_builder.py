@@ -14,8 +14,10 @@ from datetime import datetime
 import uuid
 
 from ..auth.models import MemoryEntry, Dialogue
-from ..integrations.openrouter import OpenRouterClient
 from ..database.vector_store import MultiTenantVectorStore
+
+# Type alias for LLM client (supports both OpenRouter and Ollama)
+LLMClient = object  # Duck-typed: can be OpenRouterClient or OllamaClient
 
 
 class MemoryBuilder:
@@ -26,14 +28,14 @@ class MemoryBuilder:
 
     def __init__(
         self,
-        openrouter_client: OpenRouterClient,
+        llm_client: LLMClient,
         vector_store: MultiTenantVectorStore,
         table_name: str,
         window_size: int = 40,  # Max dialogues per LLM call
         overlap_size: int = 2,
         temperature: float = 0.1,
     ):
-        self.client = openrouter_client
+        self.client = llm_client
         self.vector_store = vector_store
         self.table_name = table_name
         self.window_size = window_size
