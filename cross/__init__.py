@@ -38,6 +38,8 @@ from cross.types import (
 
 # -- Storage -------------------------------------------------------------------
 from cross.storage_sqlite import SQLiteStorage
+from cross.storage_iris_sql import IRISSQLStorage
+from cross.storage_factory import create_sql_storage, SqlStorage
 from cross.storage_iris import CrossSessionVectorStore
 
 # -- Core logic ----------------------------------------------------------------
@@ -78,6 +80,9 @@ __all__ = [
     "SessionSummary",
     # Storage
     "SQLiteStorage",
+    "IRISSQLStorage",
+    "create_sql_storage",
+    "SqlStorage",
     "CrossSessionVectorStore",
     # Core logic
     "EventCollector",

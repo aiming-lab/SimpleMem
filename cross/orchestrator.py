@@ -31,6 +31,7 @@ from cross.hooks import DefaultHooks
 from cross.session_manager import SessionManager
 from cross.storage_iris import CrossSessionVectorStore
 from cross.storage_sqlite import SQLiteStorage
+from cross.storage_factory import create_sql_storage
 from cross.types import ContextBundle, CrossMemoryEntry, FinalizationReport
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,10 @@ class CrossMemOrchestrator:
         IRIS SQL table name for the vector store.  Defaults to
         ``cross_memory_entries``.  The table is created automatically
         on first use with a HNSW index.
+    use_iris_sql:
+        If True, use IRIS SQL tables for session/event/observation metadata
+        instead of SQLite.  Requires IRIS connection settings in config.py.
+        Defaults to False (SQLite).
     lancedb_path:
         Deprecated. Ignored. Kept for backward compatibility.
     max_context_tokens:
@@ -87,14 +92,17 @@ class CrossMemOrchestrator:
         db_path: Optional[str] = None,
         lancedb_path: Optional[str] = None,
         iris_table: Optional[str] = None,
+        use_iris_sql: bool = False,
         max_context_tokens: int = 2000,
         simplemem: Optional[Any] = None,
     ) -> None:
         self.project = project
         self.tenant_id = tenant_id
 
-        # -- storage layer --------------------------------------------------
-        self.sqlite_storage = SQLiteStorage(db_path=db_path or _DEFAULT_DB_PATH)
+        self.sqlite_storage = create_sql_storage(
+            use_iris=use_iris_sql,
+            db_path=db_path or _DEFAULT_DB_PATH,
+        )
         self.vector_store = CrossSessionVectorStore(
             table_name=iris_table or _DEFAULT_IRIS_TABLE,
         )
@@ -121,10 +129,10 @@ class CrossMemOrchestrator:
 
         logger.info(
             "CrossMemOrchestrator initialised: project=%s tenant=%s "
-            "db=%s iris_table=%s max_tokens=%d",
+            "sql_backend=%s iris_table=%s max_tokens=%d",
             project,
             tenant_id,
-            db_path or _DEFAULT_DB_PATH,
+            "iris" if use_iris_sql else "sqlite",
             iris_table or _DEFAULT_IRIS_TABLE,
             max_context_tokens,
         )
@@ -529,7 +537,7 @@ def create_orchestrator(
         Project name or path used to scope memories.
     **kwargs:
         Forwarded to :class:`CrossMemOrchestrator` (``tenant_id``,
-        ``db_path``, ``iris_table``, ``max_context_tokens``,
+        ``db_path``, ``iris_table``, ``use_iris_sql``, ``max_context_tokens``,
         ``simplemem``).  ``lancedb_path`` is accepted but ignored.
 
     Returns
