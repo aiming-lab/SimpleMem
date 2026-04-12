@@ -137,9 +137,12 @@
 - [📝 SimpleMem: Text Memory](#-simplemem-text-memory)
 - [🧠 Omni-SimpleMem: Multimodal Memory](#-omni-simplemem-multimodal-memory)
 - [📦 Installation](#-installation)
+- [🗄️ Using InterSystems IRIS as the Vector Backend](#️-using-intersystems-iris-as-the-vector-backend)
 - [🐳 Docker](#-run-with-docker)
 - [🔌 Router Utilities](#-router-utilities)
 - [🔄 Cross-Session Memory](#-cross-session-memory-text-memory)
+- [🤖 Using SimpleMem with Claude + IRIS](#-using-simplemem-with-claude--iris)
+- [🔧 Adapting SimpleMem for Your IRIS Data](#-adapting-simplemem-for-your-iris-data)
 - [🔌 MCP Server](#-mcp-server-text-memory)
 - [🗺️ Roadmap](#️-roadmap)
 - [📊 Evaluation](#-evaluation)
@@ -851,6 +854,213 @@ If you are building an AI agent solution on InterSystems IRIS, this architecture
 - **HNSW index** created automatically via `CREATE INDEX ... AS HNSW(Distance='Cosine')` — no manual schema setup
 
 An ISC customer is currently running Claude with this SimpleMem + IRIS SQL backend and finds it outperforming a parallel IRIS Vector Search implementation they are also evaluating.
+
+---
+
+## 🔧 Adapting SimpleMem for Your IRIS Data
+
+This section covers how to integrate SimpleMem with data you already have in IRIS, and how to understand the ingestion pipeline well enough to adapt it.
+
+### How ingestion works (not chunking)
+
+Most RAG systems split documents into fixed-size chunks and embed them directly. SimpleMem does not do this. Instead, `MemoryBuilder` sends each dialogue window to an LLM with a prompt that extracts structured `MemoryEntry` objects — each a fully self-contained, pronoun-resolved, timestamp-resolved fact. This is semantic compression, not chunking.
+
+```
+your text
+   │
+   ▼
+MemoryBuilder (sliding window, LLM extraction)
+   │
+   ▼
+[MemoryEntry, MemoryEntry, ...]   ← what gets embedded and stored
+   │
+   ▼
+VectorStore (IRIS: VECTOR_COSINE + $FIND + SQL WHERE)
+```
+
+Each `MemoryEntry` has:
+- `lossless_restatement` — the sentence that gets embedded (semantic layer)
+- `keywords` — for `$FIND` keyword search (lexical layer)
+- `persons`, `location`, `entities`, `timestamp` — for SQL filter search (symbolic layer)
+
+### Pattern 1 — Ingest your existing IRIS table
+
+If you have an existing table of text (notes, messages, documents), run it through the builder to populate SimpleMem's memory table:
+
+```python
+from main import SimpleMemSystem
+from models.memory_entry import Dialogue
+import intersystems_iris as ii
+
+mem = SimpleMemSystem()
+
+conn = ii.createConnection('localhost', 1972, 'USER', '_SYSTEM', 'SYS')
+cur = conn.cursor()
+cur.execute("SELECT id, note_text, created_at, author FROM MyApp.ClinicalNotes")
+
+for row in cur.fetchall():
+    dialogues = [Dialogue(
+        dialogue_id=row[0],
+        speaker=row[3] or "system",
+        content=row[1],
+        timestamp=row[2],
+    )]
+    mem.memory_builder._generate_memory_entries(dialogues)
+    # or: mem.add_dialogue(dialogues) to go through the full pipeline
+
+conn.close()
+```
+
+For large text (long documents, reports), split into passages first before creating `Dialogue` objects — the LLM context window is the limit, not a chunk size parameter. A passage of 500–1000 words per `Dialogue` is a reasonable target.
+
+### Pattern 2 — Query your existing table alongside SimpleMem memory
+
+Override `VectorStore` to search both your table and SimpleMem's memory table in one call. Your table needs a `VECTOR(DOUBLE, 1024)` column (add one with `ALTER TABLE`, populate it using your embedding model).
+
+```python
+from database.vector_store import VectorStore
+from models.memory_entry import MemoryEntry
+from typing import List, Optional
+import json
+
+class HybridCustomerStore(VectorStore):
+    def __init__(self, customer_table: str, **kwargs):
+        super().__init__(**kwargs)
+        self._customer_table = customer_table
+
+    def semantic_search(self, query: str, top_k: int = 5) -> List[MemoryEntry]:
+        simplemem_results = super().semantic_search(query, top_k)
+        customer_results  = self._search_customer_table(query, top_k)
+        seen = {e.entry_id for e in simplemem_results}
+        merged = simplemem_results + [e for e in customer_results if e.entry_id not in seen]
+        return merged[:top_k]
+
+    def _search_customer_table(self, query: str, top_k: int) -> List[MemoryEntry]:
+        qvec = self.embedding_model.encode_single(query, is_query=True)
+        cur = self._cur()
+        try:
+            cur.execute(
+                f"SELECT TOP {top_k} id, note_text, "
+                f"VECTOR_COSINE(embedding, TO_VECTOR(?, DOUBLE, {self._dim})) s "
+                f"FROM {self._customer_table} ORDER BY s DESC",
+                [json.dumps(qvec.tolist())]
+            )
+            return [
+                MemoryEntry(entry_id=str(r[0]), lossless_restatement=r[1])
+                for r in cur.fetchall()
+            ]
+        finally:
+            cur.close()
+```
+
+Then wire it into the system:
+
+```python
+from main import SimpleMemSystem
+
+mem = SimpleMemSystem()
+mem.memory_builder.vector_store = HybridCustomerStore(
+    customer_table="MyApp.ClinicalNotes",
+    embedding_model=mem.memory_builder.vector_store.embedding_model,
+    table_name="memory_entries",
+)
+mem.retriever.vector_store = mem.memory_builder.vector_store
+```
+
+### Pattern 3 — Use SimpleMem retrieval against a pure SQL table (no pipeline)
+
+If you only want the hybrid retrieval layer (semantic + keyword + structured) against your own table, skip `MemoryBuilder` entirely and use `VectorStore` directly:
+
+```python
+from database.vector_store import VectorStore
+from utils.embedding import EmbeddingModel
+
+store = VectorStore(table_name="MyApp.AgentMemory")
+
+# Add entries manually (bypassing LLM compression)
+from models.memory_entry import MemoryEntry
+store.add_entries([
+    MemoryEntry(
+        lossless_restatement="Patient John Smith has a penicillin allergy documented on 2025-03-14.",
+        keywords=["penicillin", "allergy", "John Smith"],
+        persons=["John Smith"],
+        entities=["penicillin"],
+        timestamp="2025-03-14T00:00:00",
+    )
+])
+
+# Retrieve
+results = store.semantic_search("does the patient have any drug allergies?")
+results = store.keyword_search(["penicillin", "allergy"])
+results = store.structured_search(persons=["John Smith"])
+```
+
+### Adding vector embeddings to an existing IRIS table
+
+```sql
+-- Add embedding column to your existing table
+ALTER TABLE MyApp.ClinicalNotes ADD COLUMN embedding VECTOR(DOUBLE, 1024)
+
+-- Add HNSW index for fast search
+CREATE INDEX EmbeddingIdx ON TABLE MyApp.ClinicalNotes (embedding)
+  AS HNSW(Distance='Cosine', M=16, efConstruction=64)
+```
+
+Then populate with Python:
+
+```python
+from utils.embedding import EmbeddingModel
+import intersystems_iris as ii, json
+
+emb = EmbeddingModel()
+conn = ii.createConnection('localhost', 1972, 'USER', '_SYSTEM', 'SYS')
+cur = conn.cursor()
+
+cur.execute("SELECT id, note_text FROM MyApp.ClinicalNotes WHERE embedding IS NULL")
+rows = cur.fetchall()
+
+texts = [r[1] for r in rows]
+vectors = emb.encode_documents(texts)
+
+for (row_id, _), vec in zip(rows, vectors):
+    cur.execute(
+        f"UPDATE MyApp.ClinicalNotes SET embedding = TO_VECTOR(?, DOUBLE, 1024) WHERE id = ?",
+        [json.dumps(vec.tolist()), row_id]
+    )
+conn.commit()
+conn.close()
+```
+
+### Configuration reference for this fork
+
+```python
+# config.py — all settings relevant to the IRIS backend
+
+# IRIS connection
+IRIS_HOSTNAME  = "localhost"
+IRIS_PORT      = 1972
+IRIS_NAMESPACE = "USER"
+IRIS_USERNAME  = "_SYSTEM"
+IRIS_PASSWORD  = "SYS"
+
+# Memory table (created automatically on first use)
+MEMORY_TABLE_NAME = "memory_entries"
+
+# Embedding model — must match dimension used when the table was created
+# Changing this after data is loaded requires rebuilding the table
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # 1024-d
+
+# Retrieval layer top-k values
+SEMANTIC_TOP_K   = 5
+KEYWORD_TOP_K    = 3
+STRUCTURED_TOP_K = 5
+
+# Memory builder sliding window
+WINDOW_SIZE  = 10   # dialogues per LLM extraction call
+OVERLAP_SIZE = 2    # dialogues carried forward for continuity context
+```
+
+> **Embedding dimension lock-in**: once a table is created with a given dimension, all vectors stored in it must match. If you change `EMBEDDING_MODEL` to a model with a different output dimension, drop and recreate the table. The HNSW index is recreated automatically.
 
 ---
 
