@@ -778,8 +778,10 @@ Session Manager  Context Injector  Consolidation
 | Module | Description |
 |--------|-------------|
 | `cross/types.py` | Pydantic models, enums, records |
-| `cross/storage_sqlite.py` | SQLite backend for sessions, events, observations |
-| `cross/storage_lancedb.py` | LanceDB vector store with provenance |
+| `cross/storage_sqlite.py` | SQLite backend for sessions, events, observations (default) |
+| `cross/storage_iris_sql.py` | IRIS SQL backend — same interface as SQLiteStorage, zero SQLite dependency |
+| `cross/storage_factory.py` | `create_sql_storage(use_iris=False)` — selects backend |
+| `cross/storage_iris.py` | IRIS vector store for memory entries (HNSW index) |
 | `cross/hooks.py` | Lifecycle hooks (SessionStart/ToolUse/End) |
 | `cross/collectors.py` | Event collection with 3-tier redaction |
 | `cross/session_manager.py` | Full session lifecycle orchestration |
@@ -814,6 +816,48 @@ mem.add_dialogue([
 answer = mem.ask("When is the Acme Corp demo?")
 print(answer)  # "Tuesday at 2pm"
 ```
+
+### Cross-session memory: SQLite (default) or full IRIS
+
+By default, cross-session metadata (sessions, events, observations, summaries) is stored in a local SQLite file. For ISC customers who want **everything in IRIS** — no SQLite dependency, single namespace, single backup:
+
+```python
+from cross.orchestrator import create_orchestrator
+
+# Default: SQLite for metadata, IRIS for vectors
+orch = create_orchestrator("my-project")
+
+# Full IRIS: metadata AND vectors both in IRIS
+orch = create_orchestrator("my-project", use_iris_sql=True)
+```
+
+**Why full IRIS mode matters:** when `use_iris_sql=True`, all six metadata tables (`CrossMem_sessions`, `CrossMem_observations`, `CrossMem_session_summaries`, etc.) live in the same IRIS namespace as the vector store (`cross_memory_entries`). This enables SQL JOINs that are impossible when metadata is in SQLite:
+
+```sql
+-- Which memory entries came from sessions where the agent made a discovery?
+SELECT m.text, m.timestamp, o.title AS discovery
+FROM cross_memory_entries m
+JOIN CrossMem_memory_links l   ON l.memory_entry_id = m.entry_id
+JOIN CrossMem_observations o   ON o.obs_id = l.source_id
+JOIN CrossMem_sessions s       ON s.memory_session_id = o.memory_session_id
+WHERE o.type = 'discovery'
+  AND s.project = 'my-project'
+ORDER BY m.timestamp DESC
+
+-- What did the agent learn in sessions that produced high-scoring memories?
+SELECT s.started_at, s.user_prompt, ss.learned,
+       AVG(l.score) AS avg_memory_score
+FROM CrossMem_sessions s
+JOIN CrossMem_session_summaries ss ON ss.memory_session_id = s.memory_session_id
+JOIN CrossMem_memory_links l       ON l.memory_entry_id IN (
+    SELECT entry_id FROM cross_memory_entries WHERE tenant_id = s.tenant_id
+)
+WHERE s.project = 'my-project'
+GROUP BY s.id, s.started_at, s.user_prompt, ss.learned
+ORDER BY avg_memory_score DESC
+```
+
+These queries are also joinable against **your existing application tables** — patient records, orders, tickets, or any other data in the same IRIS namespace.
 
 ### With Claude via MCP (self-hosted, IRIS backend)
 
@@ -851,6 +895,7 @@ If you are building an AI agent solution on InterSystems IRIS, this architecture
 - **Persistent agent memory** stored directly in your existing IRIS namespace — no separate vector database process
 - **Hybrid retrieval** (semantic + keyword + structured) in a single SQL connection using `VECTOR_COSINE`, `$FIND`, and standard `WHERE` clauses
 - **Full SQL access** to memory data alongside your clinical, operational, or transactional data — join memory entries against patient records, orders, or any IRIS table
+- **Single namespace** (`use_iris_sql=True`) — vectors, session metadata, observations, and summaries all in one IRIS database, queryable together with your application data, no SQLite file to manage or back up
 - **ACID transactions** — memory writes participate in your existing IRIS transactions
 - **HNSW index** created automatically via `CREATE INDEX ... AS HNSW(Distance='Cosine')` — no manual schema setup
 
@@ -1120,6 +1165,18 @@ Then restart SimpleMem — the table and index are recreated with the new dimens
 `OmniSimpleMem/` uses its own internal vector stores (FAISS + custom storage). It does not go through `database/vector_store.py`. The IRIS backend change has no effect on `mode="omni"`.
 
 `SKILL/simplemem-skill/` is a self-contained distribution copy that still uses LanceDB. It is intentionally not updated — it ships as a standalone package for Claude Skills and manages its own dependencies.
+
+### Cross-session memory — SQLite vs IRIS SQL backend
+
+By default, `create_orchestrator` uses SQLite for session/event/observation metadata. To run everything in IRIS:
+
+```python
+orch = create_orchestrator("my-project", use_iris_sql=True)
+```
+
+The `use_iris_sql=True` flag switches the metadata backend to `IRISSQLStorage` — six `CrossMem_*` tables created automatically in your IRIS namespace. The vector store (`cross_memory_entries`) always uses IRIS regardless of this flag.
+
+SQLite is the better default for local or single-machine deployments. Full IRIS mode is better when you want a single namespace, single backup, and the ability to JOIN memory data with your application tables.
 
 ### Cross-session memory — `lancedb_path` parameter is deprecated
 
