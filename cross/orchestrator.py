@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 from cross.context_injector import ContextInjector, ContextRenderer
 from cross.hooks import DefaultHooks
 from cross.session_manager import SessionManager
-from cross.storage_lancedb import CrossSessionVectorStore
+from cross.storage_iris import CrossSessionVectorStore
 from cross.storage_sqlite import SQLiteStorage
 from cross.types import ContextBundle, CrossMemoryEntry, FinalizationReport
 

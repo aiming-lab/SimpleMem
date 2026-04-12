@@ -48,18 +48,13 @@ class Settings:
     ))
 
     # Database Paths
-    data_dir: str = field(default_factory=lambda: os.getenv(
-        "DATA_DIR",
-        "./data"
-    ))
-    lancedb_path: str = field(default_factory=lambda: os.getenv(
-        "LANCEDB_PATH",
-        "./data/lancedb"
-    ))
-    user_db_path: str = field(default_factory=lambda: os.getenv(
-        "USER_DB_PATH",
-        "./data/users.db"
-    ))
+    data_dir: str = field(default_factory=lambda: os.getenv("DATA_DIR", "./data"))
+    user_db_path: str = field(default_factory=lambda: os.getenv("USER_DB_PATH", "./data/users.db"))
+    IRIS_HOSTNAME: str = field(default_factory=lambda: os.getenv("IRIS_HOSTNAME", "localhost"))
+    IRIS_PORT: int = field(default_factory=lambda: int(os.getenv("IRIS_PORT", "1972")))
+    IRIS_NAMESPACE: str = field(default_factory=lambda: os.getenv("IRIS_NAMESPACE", "USER"))
+    IRIS_USERNAME: str = field(default_factory=lambda: os.getenv("IRIS_USERNAME", "_SYSTEM"))
+    IRIS_PASSWORD: str = field(default_factory=lambda: os.getenv("IRIS_PASSWORD", "SYS"))
 
     # LLM Provider Configuration
     llm_provider: str = field(default_factory=lambda: os.getenv(
@@ -110,14 +105,10 @@ class Settings:
     use_streaming: bool = True
 
     def __post_init__(self):
-        """Ensure directories exist; use absolute paths so cwd and permissions are predictable."""
         data_dir = os.path.abspath(os.path.expanduser(self.data_dir))
-        lancedb_path = os.path.abspath(os.path.expanduser(self.lancedb_path))
         self.data_dir = data_dir
-        self.lancedb_path = lancedb_path
         try:
             os.makedirs(self.data_dir, exist_ok=True)
-            os.makedirs(self.lancedb_path, exist_ok=True)
         except PermissionError as e:
             raise PermissionError(
                 f"Cannot create data dir(s): {e}. "

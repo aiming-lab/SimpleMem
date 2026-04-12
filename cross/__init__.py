@@ -38,7 +38,7 @@ from cross.types import (
 
 # -- Storage -------------------------------------------------------------------
 from cross.storage_sqlite import SQLiteStorage
-from cross.storage_lancedb import CrossSessionVectorStore
+from cross.storage_iris import CrossSessionVectorStore
 
 # -- Core logic ----------------------------------------------------------------
 from cross.collectors import EventCollector, ObservationExtractor, RedactionFilter

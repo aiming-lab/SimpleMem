@@ -78,13 +78,17 @@ STRUCTURED_TOP_K = 5
 
 
 # ============================================================================
-# Database Configuration
+# Database Configuration — InterSystems IRIS
 # ============================================================================
 
-# Path to LanceDB storage
-LANCEDB_PATH = "./lancedb_data"
+# IRIS connection parameters
+IRIS_HOSTNAME = "localhost"
+IRIS_PORT = 1972
+IRIS_NAMESPACE = "USER"
+IRIS_USERNAME = "_SYSTEM"
+IRIS_PASSWORD = "SYS"
 
-# Memory table name
+# Memory table name (collection name in IRIS)
 MEMORY_TABLE_NAME = "memory_entries"
 
 

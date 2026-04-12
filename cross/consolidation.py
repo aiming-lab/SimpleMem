@@ -27,7 +27,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from cross.storage_lancedb import CrossSessionVectorStore
+from cross.storage_iris import CrossSessionVectorStore
 from cross.storage_sqlite import SQLiteStorage
 from cross.types import ConsolidationRun
 

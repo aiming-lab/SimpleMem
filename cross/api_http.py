@@ -527,7 +527,7 @@ def create_app(
     if orchestrator is None:
         try:
             from cross.storage_sqlite import SQLiteStorage
-            from cross.storage_lancedb import CrossSessionVectorStore
+            from cross.storage_iris import CrossSessionVectorStore
             from cross.session_manager import SessionManager
 
             sqlite_storage = SQLiteStorage()

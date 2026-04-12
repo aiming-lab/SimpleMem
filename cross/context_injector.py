@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any, List, Optional, Sequence, TypeVar
 
-from cross.storage_lancedb import CrossSessionVectorStore
+from cross.storage_iris import CrossSessionVectorStore
 from cross.storage_sqlite import SQLiteStorage
 from cross.types import (
     ContextBundle,

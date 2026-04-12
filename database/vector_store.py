@@ -1,186 +1,191 @@
-"""
-Vector Store - Multi-View Indexing (Section 3.1)
+from __future__ import annotations
 
-Implements three-layer indexing I(m_k):
-- Semantic Layer: s_k = E_dense(m_k) - Dense vector similarity
-- Lexical Layer: l_k = E_sparse(m_k) - BM25 keyword matching (Tantivy FTS)
-- Symbolic Layer: r_k = E_sym(m_k) - Metadata filtering (SQL)
-"""
+import json
+import threading
 from typing import List, Optional, Dict, Any
-import lancedb
-import pyarrow as pa
+
+import iris.dbapi as dbapi
+
 from models.memory_entry import MemoryEntry
 from utils.embedding import EmbeddingModel
 import config
-import os
+
+
+def _connect() -> dbapi.Connection:
+    return dbapi.connect(
+        config.IRIS_HOSTNAME,
+        config.IRIS_PORT,
+        config.IRIS_NAMESPACE,
+        config.IRIS_USERNAME,
+        config.IRIS_PASSWORD,
+    )
+
+
+_CREATE_TABLE = """
+CREATE TABLE IF NOT EXISTS {table} (
+    entry_id   VARCHAR(64)    NOT NULL,
+    text       VARCHAR(32000) NOT NULL,
+    keywords   VARCHAR(4000),
+    timestamp  VARCHAR(64),
+    location   VARCHAR(512),
+    persons    VARCHAR(4000),
+    entities   VARCHAR(4000),
+    topic      VARCHAR(512),
+    vec        VECTOR(DOUBLE, {dim})
+)
+"""
+
+_INSERT = """
+INSERT INTO {table}
+    (entry_id, text, keywords, timestamp, location, persons, entities, topic, vec)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, TO_VECTOR(?, DOUBLE, {dim}))
+"""
+
+_SEMANTIC_SEARCH = """
+SELECT TOP {top_k} entry_id, text, keywords, timestamp, location, persons, entities, topic,
+       VECTOR_COSINE(vec, TO_VECTOR(?, DOUBLE, {dim})) AS score
+FROM {table}
+ORDER BY score DESC
+"""
+
+_DELETE_ALL = "DELETE FROM {table}"
+_DELETE_ONE = "DELETE FROM {table} WHERE entry_id = ?"
+_COUNT      = "SELECT COUNT(*) FROM {table}"
+_SELECT_ALL = "SELECT entry_id, text, keywords, timestamp, location, persons, entities, topic FROM {table}"
+
+
+def _enc(lst: list) -> str:
+    return json.dumps(lst)
+
+def _dec(s: Optional[str]) -> list:
+    if not s:
+        return []
+    try:
+        return json.loads(s)
+    except Exception:
+        return []
+
+def _row_to_entry(row) -> MemoryEntry:
+    return MemoryEntry(
+        entry_id=row[0],
+        lossless_restatement=row[1],
+        keywords=_dec(row[2]),
+        timestamp=row[3] or None,
+        location=row[4] or None,
+        persons=_dec(row[5]),
+        entities=_dec(row[6]),
+        topic=row[7] or None,
+    )
 
 
 class VectorStore:
-    """
-    Multi-View Indexing - Storage and retrieval for memory units (Section 3.1)
-
-    Three-layer indexing I(m_k):
-    1. Semantic Layer: Dense embeddings for conceptual similarity
-    2. Lexical Layer: Tantivy FTS for exact keyword matching
-    3. Symbolic Layer: SQL-based metadata filtering
-    """
-
     def __init__(
         self,
-        db_path: str = None,
         embedding_model: EmbeddingModel = None,
         table_name: str = None,
-        storage_options: Optional[Dict[str, Any]] = None
+        db_path: Optional[str] = None,
+        storage_options: Optional[Dict[str, Any]] = None,
     ):
-        self.db_path = db_path or config.LANCEDB_PATH
         self.embedding_model = embedding_model or EmbeddingModel()
         self.table_name = table_name or config.MEMORY_TABLE_NAME
-        self.table = None
-        self._fts_initialized = False
+        self._dim = self.embedding_model.dimension
+        self._lock = threading.RLock()
+        self._conn = _connect()
+        self._ensure_table()
+        print(f"Connected to IRIS table: {self.table_name}")
 
-        # Detect if using cloud storage (GCS, S3, Azure)
-        self._is_cloud_storage = self.db_path.startswith(("gs://", "s3://", "az://"))
+    def _cur(self):
+        return self._conn.cursor()
 
-        # Connect to database
-        if self._is_cloud_storage:
-            self.db = lancedb.connect(self.db_path, storage_options=storage_options)
-        else:
-            os.makedirs(self.db_path, exist_ok=True)
-            self.db = lancedb.connect(self.db_path)
-
-        self._init_table()
-
-    def _init_table(self):
-        """Initialize table schema and FTS index."""
-        schema = pa.schema([
-            pa.field("entry_id", pa.string()),
-            pa.field("lossless_restatement", pa.string()),
-            pa.field("keywords", pa.list_(pa.string())),
-            pa.field("timestamp", pa.string()),
-            pa.field("location", pa.string()),
-            pa.field("persons", pa.list_(pa.string())),
-            pa.field("entities", pa.list_(pa.string())),
-            pa.field("topic", pa.string()),
-            pa.field("vector", pa.list_(pa.float32(), self.embedding_model.dimension))
-        ])
-
-        if self.table_name not in self.db.table_names():
-            self.table = self.db.create_table(self.table_name, schema=schema)
-            print(f"Created new table: {self.table_name}")
-        else:
-            self.table = self.db.open_table(self.table_name)
-            print(f"Opened existing table: {self.table_name}")
-
-    def _init_fts_index(self):
-        """Initialize Full-Text Search index on lossless_restatement column."""
-        if self._fts_initialized:
-            return
-
+    def _ensure_table(self):
+        cur = self._cur()
         try:
-            if self._is_cloud_storage:
-                # Use native FTS for cloud storage (Tantivy only works with local filesystem)
-                self.table.create_fts_index(
-                    "lossless_restatement",
-                    use_tantivy=False,
-                    replace=True
-                )
-                print("FTS index created (native mode for cloud storage)")
-            else:
-                # Use Tantivy FTS for local storage (better performance)
-                self.table.create_fts_index(
-                    "lossless_restatement",
-                    use_tantivy=True,
-                    tokenizer_name="en_stem",
-                    replace=True
-                )
-                print("FTS index created (Tantivy mode)")
-            self._fts_initialized = True
-        except Exception as e:
-            print(f"FTS index creation skipped: {e}")
+            cur.execute(_CREATE_TABLE.format(table=self.table_name, dim=self._dim))
+            self._conn.commit()
+        except Exception:
+            pass
+        try:
+            cur.execute(
+                f"CREATE INDEX HNSWIdx ON TABLE {self.table_name} (vec)"
+                f" AS HNSW(Distance='Cosine', M=16, efConstruction=64)"
+            )
+            self._conn.commit()
+        except Exception:
+            pass
+        finally:
+            cur.close()
 
-    def _results_to_entries(self, results: List[dict]) -> List[MemoryEntry]:
-        """Convert LanceDB results to MemoryEntry objects."""
-        entries = []
-        for r in results:
-            try:
-                entries.append(MemoryEntry(
-                    entry_id=r["entry_id"],
-                    lossless_restatement=r["lossless_restatement"],
-                    keywords=list(r.get("keywords") or []),
-                    timestamp=r.get("timestamp") or None,
-                    location=r.get("location") or None,
-                    persons=list(r.get("persons") or []),
-                    entities=list(r.get("entities") or []),
-                    topic=r.get("topic") or None
-                ))
-            except Exception as e:
-                print(f"Warning: Failed to parse result: {e}")
-                continue
-        return entries
+    def _t(self, sql: str) -> str:
+        return sql.replace("{table}", self.table_name).replace("{dim}", str(self._dim))
 
     def add_entries(self, entries: List[MemoryEntry]):
-        """Batch add memory entries."""
         if not entries:
             return
-
-        restatements = [entry.lossless_restatement for entry in entries]
-        vectors = self.embedding_model.encode_documents(restatements)
-
-        data = []
-        for entry, vector in zip(entries, vectors):
-            data.append({
-                "entry_id": entry.entry_id,
-                "lossless_restatement": entry.lossless_restatement,
-                "keywords": entry.keywords,
-                "timestamp": entry.timestamp or "",
-                "location": entry.location or "",
-                "persons": entry.persons,
-                "entities": entry.entities,
-                "topic": entry.topic or "",
-                "vector": vector.tolist()
-            })
-
-        self.table.add(data)
-        print(f"Added {len(entries)} memory entries")
-
-        # Initialize FTS index after first data insertion
-        if not self._fts_initialized:
-            self._init_fts_index()
+        with self._lock:
+            texts = [e.lossless_restatement for e in entries]
+            vecs  = self.embedding_model.encode_documents(texts)
+            cur   = self._cur()
+            try:
+                for entry, vec in zip(entries, vecs):
+                    cur.execute(self._t(_INSERT), [
+                        entry.entry_id,
+                        entry.lossless_restatement,
+                        _enc(entry.keywords or []),
+                        entry.timestamp or "",
+                        entry.location  or "",
+                        _enc(entry.persons  or []),
+                        _enc(entry.entities or []),
+                        entry.topic or "",
+                        json.dumps([float(v) for v in vec]),
+                    ])
+                self._conn.commit()
+                print(f"Added {len(entries)} memory entries")
+            except Exception as e:
+                print(f"Error adding entries: {e}")
+            finally:
+                cur.close()
 
     def semantic_search(self, query: str, top_k: int = 5) -> List[MemoryEntry]:
-        """
-        Semantic Layer Search - Dense vector similarity (Section 3.1)
-        s_k = E_dense(m_k)
-        """
-        try:
-            if self.table.count_rows() == 0:
+        with self._lock:
+            qvec = self.embedding_model.encode_single(query, is_query=True)
+            cur  = self._cur()
+            try:
+                sql = _SEMANTIC_SEARCH.replace("{table}", self.table_name).replace("{dim}", str(self._dim)).replace("{top_k}", str(top_k))
+                cur.execute(sql, [
+                    json.dumps([float(v) for v in qvec]),
+                ])
+                return [_row_to_entry(r) for r in cur.fetchall()]
+            except Exception as e:
+                print(f"Error during semantic search: {e}")
                 return []
-
-            query_vector = self.embedding_model.encode_single(query, is_query=True)
-            results = self.table.search(query_vector.tolist()).limit(top_k).to_list()
-            return self._results_to_entries(results)
-
-        except Exception as e:
-            print(f"Error during semantic search: {e}")
-            return []
+            finally:
+                cur.close()
 
     def keyword_search(self, keywords: List[str], top_k: int = 3) -> List[MemoryEntry]:
-        """
-        Lexical Layer Search - BM25 keyword matching (Section 3.1)
-        l_k = E_sparse(m_k)
-        """
-        try:
-            if not keywords or self.table.count_rows() == 0:
-                return []
-
-            # LanceDB auto-detects string input as FTS query when FTS index exists
-            query = " ".join(keywords)
-            results = self.table.search(query).limit(top_k).to_list()
-            return self._results_to_entries(results)
-
-        except Exception as e:
-            print(f"Error during keyword search: {e}")
+        if not keywords:
             return []
+        with self._lock:
+            cur = self._cur()
+            try:
+                where_clause = " OR ".join("$FIND(text, ?) > 0" for _ in keywords)
+                score_expr   = " + ".join(
+                    "CASE WHEN $FIND(text, ?) > 0 THEN 1 ELSE 0 END"
+                    for _ in keywords
+                )
+                sql = f"""
+                    SELECT TOP {top_k} entry_id, text, keywords, timestamp, location, persons, entities, topic
+                    FROM {self.table_name}
+                    WHERE {where_clause}
+                    ORDER BY ({score_expr}) DESC
+                """
+                params = list(keywords) + list(keywords)
+                cur.execute(sql, params)
+                return [_row_to_entry(r) for r in cur.fetchall()]
+            except Exception as e:
+                print(f"Error during keyword search: {e}")
+                return []
+            finally:
+                cur.close()
 
     def structured_search(
         self,
@@ -188,63 +193,78 @@ class VectorStore:
         timestamp_range: Optional[tuple] = None,
         location: Optional[str] = None,
         entities: Optional[List[str]] = None,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
     ) -> List[MemoryEntry]:
-        """
-        Symbolic Layer Search - Metadata filtering (Section 3.1)
-        r_k = E_sym(m_k), filters by timestamps, entities, persons
-        """
-        try:
-            if self.table.count_rows() == 0:
-                return []
-
-            if not any([persons, timestamp_range, location, entities]):
-                return []
-
-            conditions = []
-
-            if persons:
-                values = ", ".join([f"'{p}'" for p in persons])
-                conditions.append(f"array_has_any(persons, make_array({values}))")
-
-            if location:
-                safe_location = location.replace("'", "''")
-                conditions.append(f"location LIKE '%{safe_location}%'")
-
-            if entities:
-                values = ", ".join([f"'{e}'" for e in entities])
-                conditions.append(f"array_has_any(entities, make_array({values}))")
-
-            if timestamp_range:
-                start_time, end_time = timestamp_range
-                conditions.append(f"timestamp >= '{start_time}' AND timestamp <= '{end_time}'")
-
-            where_clause = " AND ".join(conditions)
-            query = self.table.search().where(where_clause, prefilter=True)
-
-            if top_k:
-                query = query.limit(top_k)
-
-            results = query.to_list()
-            return self._results_to_entries(results)
-
-        except Exception as e:
-            print(f"Error during structured search: {e}")
+        if not any([persons, timestamp_range, location, entities]):
             return []
+        with self._lock:
+            cur = self._cur()
+            try:
+                conditions, params = [], []
+
+                if persons:
+                    person_clauses = [f"$FIND(persons, ?) > 0" for _ in persons]
+                    conditions.append(f"({' OR '.join(person_clauses)})")
+                    params.extend(persons)
+
+                if location:
+                    conditions.append("$FIND(location, ?) > 0")
+                    params.append(location)
+
+                if entities:
+                    entity_clauses = [f"$FIND(entities, ?) > 0" for _ in entities]
+                    conditions.append(f"({' OR '.join(entity_clauses)})")
+                    params.extend(entities)
+
+                if timestamp_range:
+                    start, end = timestamp_range
+                    conditions.append("timestamp >= ? AND timestamp <= ?")
+                    params.extend([str(start), str(end)])
+
+                where = " AND ".join(conditions)
+                limit = f"TOP {top_k}" if top_k else ""
+                sql = f"""
+                    SELECT {limit} entry_id, text, keywords, timestamp, location, persons, entities, topic
+                    FROM {self.table_name}
+                    WHERE {where}
+                """
+                cur.execute(sql, params)
+                return [_row_to_entry(r) for r in cur.fetchall()]
+            except Exception as e:
+                print(f"Error during structured search: {e}")
+                return []
+            finally:
+                cur.close()
 
     def get_all_entries(self) -> List[MemoryEntry]:
-        """Get all memory entries."""
-        results = self.table.to_arrow().to_pylist()
-        return self._results_to_entries(results)
+        with self._lock:
+            cur = self._cur()
+            try:
+                cur.execute(self._t(_SELECT_ALL))
+                return [_row_to_entry(r) for r in cur.fetchall()]
+            except Exception as e:
+                print(f"Error fetching all entries: {e}")
+                return []
+            finally:
+                cur.close()
 
     def optimize(self):
-        """Optimize table after bulk insertions for better query performance."""
-        self.table.optimize()
-        print("Table optimized")
+        pass
 
     def clear(self):
-        """Clear all data and reinitialize table."""
-        self.db.drop_table(self.table_name)
-        self._fts_initialized = False
-        self._init_table()
-        print("Database cleared")
+        with self._lock:
+            cur = self._cur()
+            try:
+                cur.execute(self._t(_DELETE_ALL))
+                self._conn.commit()
+                print("Database cleared")
+            except Exception as e:
+                print(f"Error clearing database: {e}")
+            finally:
+                cur.close()
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass

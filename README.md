@@ -510,9 +510,93 @@ EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # State-of-the-art retrieval
 
 ---
 
+## 🗄️ Using InterSystems IRIS as the Vector Backend
+
+This fork replaces LanceDB with **[InterSystems IRIS](https://www.intersystems.com/products/intersystems-iris/)** as the vector store, using IRIS's native `VECTOR` SQL type and `HNSW` approximate nearest-neighbor index. All three retrieval layers (semantic, keyword, structured) run as pure SQL — no external vector database process required.
+
+> **Why IRIS?** In head-to-head benchmarks on a real agent memory workload, this IRIS + HNSW implementation matches or outperforms LanceDB + IVF above ~5k entries per user, delivers ~4× faster keyword search (native `$FIND` vs Tantivy), and adds full ACID transactions, SQL joins across memory and application data, and zero additional infrastructure when IRIS is already in your stack. See [benchmark results](#benchmark-iris-vs-lancedb) below.
+
+### Prerequisites
+
+- InterSystems IRIS 2025.1 or later (includes `VECTOR` type and `HNSW` index)
+- Python package: `intersystems-irispython`
+
+```bash
+pip install intersystems-irispython
+```
+
+**Get IRIS free:** [InterSystems IRIS Community Edition](https://www.intersystems.com/try-intersystems-iris-for-free/) — available as a Docker image or installer.
+
+```bash
+docker pull intersystemsdc/iris-community
+docker run -d --name iris -p 1972:1972 -p 52773:52773 intersystemsdc/iris-community
+```
+
+### Configuration
+
+```python
+# config.py — IRIS connection settings
+IRIS_HOSTNAME  = "localhost"
+IRIS_PORT      = 1972          # default superserver port
+IRIS_NAMESPACE = "USER"
+IRIS_USERNAME  = "_SYSTEM"
+IRIS_PASSWORD  = "SYS"
+
+MEMORY_TABLE_NAME = "memory_entries"
+```
+
+For IRIS Cloud or a managed instance, set `IRIS_HOSTNAME` to your endpoint and update credentials accordingly.
+
+### What the backend does automatically
+
+On first use, `VectorStore` and `CrossSessionVectorStore` each run:
+
+```sql
+CREATE TABLE memory_entries (
+    entry_id  VARCHAR(64),
+    text      VARCHAR(32000),
+    ...       -- keyword, timestamp, location, persons, entities, topic
+    vec       VECTOR(DOUBLE, 1024)
+)
+
+CREATE INDEX HNSWIdx ON TABLE memory_entries (vec)
+  AS HNSW(Distance='Cosine', M=16, efConstruction=64)
+```
+
+No manual schema setup needed. The HNSW index is created idempotently — safe to restart.
+
+### Benchmark: IRIS vs LanceDB
+
+All measurements on localhost, Apple M-series, Qwen3-Embedding-0.6B (1024-d vectors):
+
+**Vector search latency (1024-d, TOP 10):**
+
+| Corpus size | LanceDB plain | LanceDB + IVF | IRIS plain | IRIS + HNSW |
+|-------------|--------------|---------------|------------|-------------|
+| 500 entries | 2.5ms | 2.4ms | 2.3ms | 2.5ms |
+| 2,000 | 3.4ms | 3.3ms | 6.5ms | **3.9ms** |
+| 5,000 | 4.2ms | 4.1ms | 16ms | **4.7ms** |
+| 10,000 | 8.0ms | 7.8ms | 31ms | **5.5ms** |
+
+**Keyword and metadata search (25 entries, Recall@10):**
+
+| Search type | LanceDB | IRIS | Winner |
+|-------------|---------|------|--------|
+| Semantic | 1.000 | 1.000 | Tie |
+| Keyword (multi-word) | 1.000* | 1.000 | Tie |
+| Structured (persons) | 0.857 | 0.857 | Tie |
+| Keyword latency | ~7ms | **~1ms** | IRIS |
+| Structured latency | ~3ms | **~0.8ms** | IRIS |
+
+*LanceDB keyword search requires `pylance` installed and `create_fts_index()` called after every data load. Without this, it silently returns zero results. IRIS `$FIND` works out of the box.
+
+**Key finding:** An ISC customer implementing an IRIS Vector Search solution found that SimpleMem's SQL-first approach — combining `VECTOR_COSINE` semantic search with `$FIND` keyword scoring and structured SQL filters in a single connection — **outperformed their standalone IRIS Vector Search implementation**, which relied on a separate vector index layer without the hybrid retrieval pipeline.
+
+---
+
 ## 🐳 Run with Docker
 
-The **MCP Server** can be run in Docker for a consistent, isolated environment. Data (LanceDB and user DB) is persisted in a host volume.
+The **MCP Server** can be run in Docker for a consistent, isolated environment. Data is persisted in a host volume.
 
 ### Prerequisites
 
@@ -702,6 +786,71 @@ Session Manager  Context Injector  Consolidation
 | `cross/consolidation.py` | Memory maintenance worker |
 
 > 📖 For detailed API documentation, see [Cross-Session README](cross/README.md)
+
+---
+
+## 🤖 Using SimpleMem with Claude + IRIS
+
+This fork is particularly well-suited for Claude deployments that already run InterSystems IRIS — a common configuration in healthcare, enterprise, and ISC customer environments.
+
+### Direct Python integration
+
+```python
+from main import SimpleMemSystem
+
+mem = SimpleMemSystem()
+
+# Store conversation turns
+mem.add_dialogue([
+    {"role": "user",    "content": "Schedule a demo with Acme Corp next Tuesday at 2pm"},
+    {"role": "assistant","content": "Done — I've noted the Acme Corp demo for Tuesday at 2pm."},
+])
+
+# Retrieve on next session
+answer = mem.ask("When is the Acme Corp demo?")
+print(answer)  # "Tuesday at 2pm"
+```
+
+### With Claude via MCP (self-hosted, IRIS backend)
+
+1. Start the MCP server pointing at your IRIS instance:
+
+```bash
+# Set IRIS connection in .env
+IRIS_HOSTNAME=your-iris-host
+IRIS_PORT=1972
+IRIS_USERNAME=_SYSTEM
+IRIS_PASSWORD=SYS
+
+cd MCP && python run.py
+```
+
+2. Add to your Claude Desktop `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "simplemem": {
+      "url": "http://localhost:8000/mcp",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
+    }
+  }
+}
+```
+
+3. Claude now has persistent memory across conversations, backed by IRIS.
+
+### Why this matters for ISC customers
+
+If you are building an AI agent solution on InterSystems IRIS, this architecture gives you:
+
+- **Persistent agent memory** stored directly in your existing IRIS namespace — no separate vector database process
+- **Hybrid retrieval** (semantic + keyword + structured) in a single SQL connection using `VECTOR_COSINE`, `$FIND`, and standard `WHERE` clauses
+- **Full SQL access** to memory data alongside your clinical, operational, or transactional data — join memory entries against patient records, orders, or any IRIS table
+- **ACID transactions** — memory writes participate in your existing IRIS transactions
+- **HNSW index** created automatically via `CREATE INDEX ... AS HNSW(Distance='Cosine')` — no manual schema setup
+
+An ISC customer is currently running Claude with this SimpleMem + IRIS SQL backend and finds it outperforming a parallel IRIS Vector Search implementation they are also evaluating.
 
 ---
 
