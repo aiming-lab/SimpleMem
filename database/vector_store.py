@@ -21,6 +21,15 @@ def _connect() -> dbapi.Connection:
     )
 
 
+_local = threading.local()
+
+
+def _thread_conn() -> dbapi.Connection:
+    if not getattr(_local, "conn", None):
+        _local.conn = _connect()
+    return _local.conn
+
+
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS {table} (
     entry_id   VARCHAR(64)    NOT NULL,
@@ -89,19 +98,20 @@ class VectorStore:
         self.embedding_model = embedding_model or EmbeddingModel()
         self.table_name = table_name or config.MEMORY_TABLE_NAME
         self._dim = self.embedding_model.dimension
-        self._lock = threading.RLock()
-        self._conn = _connect()
         self._ensure_table()
         print(f"Connected to IRIS table: {self.table_name}")
 
     def _cur(self):
-        return self._conn.cursor()
+        return _thread_conn().cursor()
+
+    def _commit(self):
+        _thread_conn().commit()
 
     def _ensure_table(self):
         cur = self._cur()
         try:
             cur.execute(_CREATE_TABLE.format(table=self.table_name, dim=self._dim))
-            self._conn.commit()
+            self._commit()
         except Exception:
             pass
         try:
@@ -109,7 +119,7 @@ class VectorStore:
                 f"CREATE INDEX HNSWIdx ON TABLE {self.table_name} (vec)"
                 f" AS HNSW(Distance='Cosine', M=16, efConstruction=64)"
             )
-            self._conn.commit()
+            self._commit()
         except Exception:
             pass
         finally:
@@ -121,71 +131,65 @@ class VectorStore:
     def add_entries(self, entries: List[MemoryEntry]):
         if not entries:
             return
-        with self._lock:
-            texts = [e.lossless_restatement for e in entries]
-            vecs  = self.embedding_model.encode_documents(texts)
-            cur   = self._cur()
-            try:
-                for entry, vec in zip(entries, vecs):
-                    cur.execute(self._t(_INSERT), [
-                        entry.entry_id,
-                        entry.lossless_restatement,
-                        _enc(entry.keywords or []),
-                        entry.timestamp or "",
-                        entry.location  or "",
-                        _enc(entry.persons  or []),
-                        _enc(entry.entities or []),
-                        entry.topic or "",
-                        json.dumps([float(v) for v in vec]),
-                    ])
-                self._conn.commit()
-                print(f"Added {len(entries)} memory entries")
-            except Exception as e:
-                print(f"Error adding entries: {e}")
-            finally:
-                cur.close()
+        texts = [e.lossless_restatement for e in entries]
+        vecs  = self.embedding_model.encode_documents(texts)
+        cur   = self._cur()
+        try:
+            for entry, vec in zip(entries, vecs):
+                cur.execute(self._t(_INSERT), [
+                    entry.entry_id,
+                    entry.lossless_restatement,
+                    _enc(entry.keywords or []),
+                    entry.timestamp or "",
+                    entry.location  or "",
+                    _enc(entry.persons  or []),
+                    _enc(entry.entities or []),
+                    entry.topic or "",
+                    json.dumps([float(v) for v in vec]),
+                ])
+            self._commit()
+            print(f"Added {len(entries)} memory entries")
+        except Exception as e:
+            print(f"Error adding entries: {e}")
+        finally:
+            cur.close()
 
     def semantic_search(self, query: str, top_k: int = 5) -> List[MemoryEntry]:
-        with self._lock:
-            qvec = self.embedding_model.encode_single(query, is_query=True)
-            cur  = self._cur()
-            try:
-                sql = _SEMANTIC_SEARCH.replace("{table}", self.table_name).replace("{dim}", str(self._dim)).replace("{top_k}", str(top_k))
-                cur.execute(sql, [
-                    json.dumps([float(v) for v in qvec]),
-                ])
-                return [_row_to_entry(r) for r in cur.fetchall()]
-            except Exception as e:
-                print(f"Error during semantic search: {e}")
-                return []
-            finally:
-                cur.close()
+        qvec = self.embedding_model.encode_single(query, is_query=True)
+        cur  = self._cur()
+        try:
+            sql = _SEMANTIC_SEARCH.replace("{table}", self.table_name).replace("{dim}", str(self._dim)).replace("{top_k}", str(top_k))
+            cur.execute(sql, [json.dumps([float(v) for v in qvec])])
+            return [_row_to_entry(r) for r in cur.fetchall()]
+        except Exception as e:
+            print(f"Error during semantic search: {e}")
+            return []
+        finally:
+            cur.close()
 
     def keyword_search(self, keywords: List[str], top_k: int = 3) -> List[MemoryEntry]:
         if not keywords:
             return []
-        with self._lock:
-            cur = self._cur()
-            try:
-                where_clause = " OR ".join("$FIND(text, ?) > 0" for _ in keywords)
-                score_expr   = " + ".join(
-                    "CASE WHEN $FIND(text, ?) > 0 THEN 1 ELSE 0 END"
-                    for _ in keywords
-                )
-                sql = f"""
-                    SELECT TOP {top_k} entry_id, text, keywords, timestamp, location, persons, entities, topic
-                    FROM {self.table_name}
-                    WHERE {where_clause}
-                    ORDER BY ({score_expr}) DESC
-                """
-                params = list(keywords) + list(keywords)
-                cur.execute(sql, params)
-                return [_row_to_entry(r) for r in cur.fetchall()]
-            except Exception as e:
-                print(f"Error during keyword search: {e}")
-                return []
-            finally:
-                cur.close()
+        cur = self._cur()
+        try:
+            where_clause = " OR ".join("$FIND(text, ?) > 0" for _ in keywords)
+            score_expr   = " + ".join(
+                "CASE WHEN $FIND(text, ?) > 0 THEN 1 ELSE 0 END"
+                for _ in keywords
+            )
+            sql = f"""
+                SELECT TOP {top_k} entry_id, text, keywords, timestamp, location, persons, entities, topic
+                FROM {self.table_name}
+                WHERE {where_clause}
+                ORDER BY ({score_expr}) DESC
+            """
+            cur.execute(sql, list(keywords) + list(keywords))
+            return [_row_to_entry(r) for r in cur.fetchall()]
+        except Exception as e:
+            print(f"Error during keyword search: {e}")
+            return []
+        finally:
+            cur.close()
 
     def structured_search(
         self,
@@ -197,74 +201,68 @@ class VectorStore:
     ) -> List[MemoryEntry]:
         if not any([persons, timestamp_range, location, entities]):
             return []
-        with self._lock:
-            cur = self._cur()
-            try:
-                conditions, params = [], []
+        cur = self._cur()
+        try:
+            conditions, params = [], []
 
-                if persons:
-                    person_clauses = [f"$FIND(persons, ?) > 0" for _ in persons]
-                    conditions.append(f"({' OR '.join(person_clauses)})")
-                    params.extend(persons)
+            if persons:
+                conditions.append(f"({' OR '.join('$FIND(persons, ?) > 0' for _ in persons)})")
+                params.extend(persons)
+            if location:
+                conditions.append("$FIND(location, ?) > 0")
+                params.append(location)
+            if entities:
+                conditions.append(f"({' OR '.join('$FIND(entities, ?) > 0' for _ in entities)})")
+                params.extend(entities)
+            if timestamp_range:
+                start, end = timestamp_range
+                conditions.append("timestamp >= ? AND timestamp <= ?")
+                params.extend([str(start), str(end)])
 
-                if location:
-                    conditions.append("$FIND(location, ?) > 0")
-                    params.append(location)
-
-                if entities:
-                    entity_clauses = [f"$FIND(entities, ?) > 0" for _ in entities]
-                    conditions.append(f"({' OR '.join(entity_clauses)})")
-                    params.extend(entities)
-
-                if timestamp_range:
-                    start, end = timestamp_range
-                    conditions.append("timestamp >= ? AND timestamp <= ?")
-                    params.extend([str(start), str(end)])
-
-                where = " AND ".join(conditions)
-                limit = f"TOP {top_k}" if top_k else ""
-                sql = f"""
-                    SELECT {limit} entry_id, text, keywords, timestamp, location, persons, entities, topic
-                    FROM {self.table_name}
-                    WHERE {where}
-                """
-                cur.execute(sql, params)
-                return [_row_to_entry(r) for r in cur.fetchall()]
-            except Exception as e:
-                print(f"Error during structured search: {e}")
-                return []
-            finally:
-                cur.close()
+            limit = f"TOP {top_k}" if top_k else ""
+            sql = f"""
+                SELECT {limit} entry_id, text, keywords, timestamp, location, persons, entities, topic
+                FROM {self.table_name}
+                WHERE {" AND ".join(conditions)}
+            """
+            cur.execute(sql, params)
+            return [_row_to_entry(r) for r in cur.fetchall()]
+        except Exception as e:
+            print(f"Error during structured search: {e}")
+            return []
+        finally:
+            cur.close()
 
     def get_all_entries(self) -> List[MemoryEntry]:
-        with self._lock:
-            cur = self._cur()
-            try:
-                cur.execute(self._t(_SELECT_ALL))
-                return [_row_to_entry(r) for r in cur.fetchall()]
-            except Exception as e:
-                print(f"Error fetching all entries: {e}")
-                return []
-            finally:
-                cur.close()
+        cur = self._cur()
+        try:
+            cur.execute(self._t(_SELECT_ALL))
+            return [_row_to_entry(r) for r in cur.fetchall()]
+        except Exception as e:
+            print(f"Error fetching all entries: {e}")
+            return []
+        finally:
+            cur.close()
 
     def optimize(self):
         pass
 
     def clear(self):
-        with self._lock:
-            cur = self._cur()
-            try:
-                cur.execute(self._t(_DELETE_ALL))
-                self._conn.commit()
-                print("Database cleared")
-            except Exception as e:
-                print(f"Error clearing database: {e}")
-            finally:
-                cur.close()
+        cur = self._cur()
+        try:
+            cur.execute(self._t(_DELETE_ALL))
+            self._commit()
+            print("Database cleared")
+        except Exception as e:
+            print(f"Error clearing database: {e}")
+        finally:
+            cur.close()
 
     def close(self):
-        try:
-            self._conn.close()
-        except Exception:
-            pass
+        conn = getattr(_local, "conn", None)
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _local.conn = None

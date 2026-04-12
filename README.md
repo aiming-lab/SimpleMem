@@ -143,6 +143,7 @@
 - [🔄 Cross-Session Memory](#-cross-session-memory-text-memory)
 - [🤖 Using SimpleMem with Claude + IRIS](#-using-simplemem-with-claude--iris)
 - [🔧 Adapting SimpleMem for Your IRIS Data](#-adapting-simplemem-for-your-iris-data)
+- [⚠️ IRIS Backend — Known Gotchas](#️-iris-backend--known-gotchas)
 - [🔌 MCP Server](#-mcp-server-text-memory)
 - [🗺️ Roadmap](#️-roadmap)
 - [📊 Evaluation](#-evaluation)
@@ -1061,6 +1062,68 @@ OVERLAP_SIZE = 2    # dialogues carried forward for continuity context
 ```
 
 > **Embedding dimension lock-in**: once a table is created with a given dimension, all vectors stored in it must match. If you change `EMBEDDING_MODEL` to a model with a different output dimension, drop and recreate the table. The HNSW index is recreated automatically.
+
+---
+
+## ⚠️ IRIS Backend — Known Gotchas
+
+### Connection and threading
+
+**Each thread gets its own IRIS connection** (thread-local). `VectorStore` and `CrossSessionVectorStore` both use `threading.local()` — a new connection is opened the first time any method is called from a given thread. This means:
+
+- `enable_parallel_retrieval=True` **works and gives true DB parallelism** — each worker thread opens its own connection and queries execute concurrently. This is a significant difference from LanceDB, which used a single shared connection with a lock.
+- `enable_parallel_processing=True` **works** — LLM extraction runs in parallel, then `add_entries()` is called once on the main thread. No connection contention.
+- `store.close()` only closes the calling thread's connection. In a server/long-running process, connections accumulate (one per thread). For FastAPI/async use, call `store.close()` in a thread cleanup hook, or set `IRIS_MAX_CONNECTIONS` in your IRIS instance config to cap the pool.
+
+### `TOP` clause is literal, not parameterized
+
+IRIS SQL requires `TOP N` to be a literal integer in the query string. Parameterized `TOP ?` raises `SQLCODE -1`. This is handled internally — `top_k` values are formatted into the SQL string, not bound as parameters. **Implication**: if you write custom queries against the IRIS tables, don't try to bind `TOP ?`.
+
+### `$FIND` is substring, not word-boundary
+
+`$FIND(text, 'bob')` matches `"bobby"` and `"elbow"`. For conversational memory entries this is usually acceptable. If you need exact word matching, wrap the keyword search with a post-filter in Python, or use `%MATCHES '*\bbob\b*'` syntax (IRIS pattern matching supports word boundaries via `\b` in some contexts).
+
+### HNSW index requires `TOP` + `ORDER BY DESC`
+
+The HNSW index is **only used** when the query includes both a `TOP N` clause and `ORDER BY ... DESC` on the vector distance function. A query without `TOP` will fall back to a full scan even if the HNSW index exists. All three search methods in `VectorStore` already follow this pattern correctly.
+
+### HNSW index versioning
+
+IRIS documentation notes that future versions may change the internal HNSW storage format, requiring an index rebuild. If after an IRIS upgrade you see:
+
+```
+HNSW index HNSWIdx was built using an unsupported HNSW storage version
+```
+
+Drop and recreate: `DROP INDEX HNSWIdx ON TABLE memory_entries` then restart SimpleMem (the index is recreated automatically by `_ensure_table()`).
+
+### Embedding dimension lock-in (HNSW is strict)
+
+The HNSW index is tied to the vector dimension at creation time. Changing `EMBEDDING_MODEL` to one with a different output dimension requires:
+
+```sql
+DROP TABLE memory_entries    -- or cross_memory_entries
+```
+
+Then restart SimpleMem — the table and index are recreated with the new dimension. All previously stored memories are lost on drop.
+
+### Parallel mode — `enable_parallel_processing` vs `enable_parallel_retrieval`
+
+| Mode | What's parallel | DB impact |
+|---|---|---|
+| `enable_parallel_processing=True` | LLM extraction calls | Single `add_entries()` call after all workers finish. Zero contention. |
+| `enable_parallel_retrieval=True` | Search query calls | Each thread opens its own IRIS connection. True concurrent DB reads. Works correctly. |
+| Both enabled | All of the above | Works. Monitor IRIS connection count with `SELECT COUNT(*) FROM %SYS.ProcessQuery WHERE ClientName LIKE '%iris%'`. |
+
+### `OmniSimpleMem` and `SKILL/` are unaffected
+
+`OmniSimpleMem/` uses its own internal vector stores (FAISS + custom storage). It does not go through `database/vector_store.py`. The IRIS backend change has no effect on `mode="omni"`.
+
+`SKILL/simplemem-skill/` is a self-contained distribution copy that still uses LanceDB. It is intentionally not updated — it ships as a standalone package for Claude Skills and manages its own dependencies.
+
+### Cross-session memory — `lancedb_path` parameter is deprecated
+
+`create_orchestrator(project=..., lancedb_path=...)` still accepts `lancedb_path` for backward compatibility but **ignores it**. Use `iris_table="my_table_name"` to override the default `cross_memory_entries` table name.
 
 ---
 

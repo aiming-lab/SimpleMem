@@ -97,7 +97,7 @@ pip install -r requirements-gpu.txt
 ## NOTES
 
 - `simplemem_router.py` auto-detects backend on first API call: `add_dialogue()` → text, `add_image()/add_text()/add_audio()/add_video()` → omni
-- LanceDB stores vectors at `~/.simplemem-cross/lancedb_cross` (cross) and local `./` paths (text)
+- IRIS stores vectors in SQL tables: `memory_entries` (text pipeline), `cross_memory_entries` (cross-session). Tables and HNSW index created automatically.
 - Embedding default: `Qwen/Qwen3-Embedding-0.6B` (1024-d); configurable in `config.py`
 - Parallel mode: `enable_parallel_processing=True` for batch ops
 - MCP cloud: `mcp.simplemem.cloud` — self-host via Docker

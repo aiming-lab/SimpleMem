@@ -374,7 +374,7 @@ def run_consolidation(
 
     Args:
         sqlite_storage: SQLite backend for recording consolidation metadata.
-        vector_store: LanceDB vector store with cross-session entries.
+        vector_store: IRIS vector store with cross-session entries.
         tenant_id: Tenant whose entries should be consolidated.
         policy: Optional override for the default :class:`ConsolidationPolicy`.
 

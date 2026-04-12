@@ -5,7 +5,7 @@ from __future__ import annotations
 Cross-session memory orchestrator for SimpleMem-Cross.
 
 This module provides :class:`CrossMemOrchestrator`, the top-level facade
-that wires together SQLite storage, LanceDB vector search, session
+that wires together SQLite storage, IRIS vector search, session
 management, context injection, and lifecycle hooks into a single,
 easy-to-use entry point.
 
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _DEFAULT_DB_PATH = "~/.simplemem-cross/cross_memory.db"
-_DEFAULT_LANCEDB_PATH = "~/.simplemem-cross/lancedb_cross"
+_DEFAULT_IRIS_TABLE = "cross_memory_entries"
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ class CrossMemOrchestrator:
     """Top-level entry point for the SimpleMem-Cross system.
 
     The orchestrator is the **main user-facing class**.  It initialises all
-    internal components (SQLite storage, LanceDB vector store, session
+    internal components (SQLite storage, IRIS vector store, session
     manager, context injector, lifecycle hooks) and exposes a clean,
     high-level API for managing cross-session memory.
 
@@ -65,9 +65,12 @@ class CrossMemOrchestrator:
     db_path:
         Path to the SQLite database file.  Defaults to
         ``~/.simplemem-cross/cross_memory.db``.
+    iris_table:
+        IRIS SQL table name for the vector store.  Defaults to
+        ``cross_memory_entries``.  The table is created automatically
+        on first use with a HNSW index.
     lancedb_path:
-        Directory path for the LanceDB vector store.  Defaults to
-        ``~/.simplemem-cross/lancedb_cross``.
+        Deprecated. Ignored. Kept for backward compatibility.
     max_context_tokens:
         Maximum token budget for the context bundle assembled at
         session start.
@@ -83,6 +86,7 @@ class CrossMemOrchestrator:
         tenant_id: str = "default",
         db_path: Optional[str] = None,
         lancedb_path: Optional[str] = None,
+        iris_table: Optional[str] = None,
         max_context_tokens: int = 2000,
         simplemem: Optional[Any] = None,
     ) -> None:
@@ -92,7 +96,7 @@ class CrossMemOrchestrator:
         # -- storage layer --------------------------------------------------
         self.sqlite_storage = SQLiteStorage(db_path=db_path or _DEFAULT_DB_PATH)
         self.vector_store = CrossSessionVectorStore(
-            db_path=lancedb_path or _DEFAULT_LANCEDB_PATH,
+            table_name=iris_table or _DEFAULT_IRIS_TABLE,
         )
 
         # -- session manager ------------------------------------------------
@@ -117,11 +121,11 @@ class CrossMemOrchestrator:
 
         logger.info(
             "CrossMemOrchestrator initialised: project=%s tenant=%s "
-            "db=%s lancedb=%s max_tokens=%d",
+            "db=%s iris_table=%s max_tokens=%d",
             project,
             tenant_id,
             db_path or _DEFAULT_DB_PATH,
-            lancedb_path or _DEFAULT_LANCEDB_PATH,
+            iris_table or _DEFAULT_IRIS_TABLE,
             max_context_tokens,
         )
 
@@ -525,8 +529,8 @@ def create_orchestrator(
         Project name or path used to scope memories.
     **kwargs:
         Forwarded to :class:`CrossMemOrchestrator` (``tenant_id``,
-        ``db_path``, ``lancedb_path``, ``max_context_tokens``,
-        ``simplemem``).
+        ``db_path``, ``iris_table``, ``max_context_tokens``,
+        ``simplemem``).  ``lancedb_path`` is accepted but ignored.
 
     Returns
     -------

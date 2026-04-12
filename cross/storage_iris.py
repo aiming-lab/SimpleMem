@@ -23,6 +23,15 @@ def _connect() -> dbapi.Connection:
     )
 
 
+_local = threading.local()
+
+
+def _thread_conn() -> dbapi.Connection:
+    if not getattr(_local, "conn", None):
+        _local.conn = _connect()
+    return _local.conn
+
+
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS {table} (
     entry_id          VARCHAR(64)    NOT NULL,
@@ -124,13 +133,14 @@ class CrossSessionVectorStore:
         self.embedding_model = embedding_model or EmbeddingModel()
         self.table_name = table_name
         self._dim = self.embedding_model.dimension
-        self._lock = threading.RLock()
-        self._conn = _connect()
         self._ensure_table()
         print(f"Connected to IRIS cross-session table: {self.table_name}")
 
     def _cur(self):
-        return self._conn.cursor()
+        return _thread_conn().cursor()
+
+    def _commit(self):
+        _thread_conn().commit()
 
     def _ensure_table(self):
         cur = self._cur()
@@ -138,7 +148,7 @@ class CrossSessionVectorStore:
             cur.execute(
                 _CREATE_TABLE.format(table=self.table_name, dim=self._dim)
             )
-            self._conn.commit()
+            self._commit()
         except Exception:
             pass
         try:
@@ -146,7 +156,7 @@ class CrossSessionVectorStore:
                 f"CREATE INDEX HNSWIdx ON TABLE {self.table_name} (vec)"
                 f" AS HNSW(Distance='Cosine', M=16, efConstruction=64)"
             )
-            self._conn.commit()
+            self._commit()
         except Exception:
             pass
         finally:
@@ -183,7 +193,7 @@ class CrossSessionVectorStore:
                     r["valid_to"], r["superseded_by"],
                     json.dumps([float(v) for v in r["vec"]]),
                 ])
-            self._conn.commit()
+            self._commit()
         finally:
             cur.close()
 
@@ -198,7 +208,6 @@ class CrossSessionVectorStore:
     ):
         if not entries:
             return
-        with self._lock:
             try:
                 vecs = self.embedding_model.encode_documents(
                     [e.lossless_restatement for e in entries]
@@ -234,7 +243,6 @@ class CrossSessionVectorStore:
     def add_cross_entries(self, cross_entries: list[CrossMemoryEntry]):
         if not cross_entries:
             return
-        with self._lock:
             try:
                 vecs = self.embedding_model.encode_documents(
                     [e.lossless_restatement for e in cross_entries]
@@ -291,7 +299,6 @@ class CrossSessionVectorStore:
         tenant_id: Optional[str] = None,
         project: Optional[str] = None,
     ) -> list[CrossMemoryEntry]:
-        with self._lock:
             try:
                 where, params = self._build_where(tenant_id=tenant_id)
                 return self._semantic(query, top_k, where, params)
@@ -307,7 +314,6 @@ class CrossSessionVectorStore:
     ) -> list[CrossMemoryEntry]:
         if not keywords:
             return []
-        with self._lock:
             cur = self._cur()
             try:
                 kw_filter = " OR ".join("$FIND(text, ?) > 0" for _ in keywords)
@@ -349,7 +355,6 @@ class CrossSessionVectorStore:
     ) -> list[CrossMemoryEntry]:
         if not any([persons, timestamp_range, location, entities, tenant_id]):
             return []
-        with self._lock:
             cur = self._cur()
             try:
                 conds, params = [], []
@@ -384,7 +389,6 @@ class CrossSessionVectorStore:
                 cur.close()
 
     def get_entries_for_session(self, memory_session_id: str) -> list[CrossMemoryEntry]:
-        with self._lock:
             cur = self._cur()
             try:
                 cur.execute(
@@ -401,7 +405,6 @@ class CrossSessionVectorStore:
                 cur.close()
 
     def get_all_entries(self, tenant_id: Optional[str] = None) -> list[CrossMemoryEntry]:
-        with self._lock:
             cur = self._cur()
             try:
                 where, params = self._build_where(tenant_id=tenant_id)
@@ -419,25 +422,23 @@ class CrossSessionVectorStore:
                 cur.close()
 
     def mark_superseded(self, old_entry_id: str, new_entry_id: str):
-        with self._lock:
             cur = self._cur()
             try:
                 cur.execute(
                     self._t(_UPDATE_SUPER),
                     [new_entry_id, datetime.utcnow().isoformat(), old_entry_id],
                 )
-                self._conn.commit()
+                self._commit()
             except Exception as e:
                 print(f"Error marking entry superseded: {e}")
             finally:
                 cur.close()
 
     def update_importance(self, entry_id: str, new_importance: float):
-        with self._lock:
             cur = self._cur()
             try:
                 cur.execute(self._t(_UPDATE_IMP), [float(new_importance), entry_id])
-                self._conn.commit()
+                self._commit()
             except Exception as e:
                 print(f"Error updating importance: {e}")
             finally:
@@ -448,7 +449,6 @@ class CrossSessionVectorStore:
         tenant_id: Optional[str] = None,
         memory_session_id: Optional[str] = None,
     ) -> int:
-        with self._lock:
             cur = self._cur()
             try:
                 where, params = self._build_where(tenant_id, memory_session_id)
@@ -461,7 +461,6 @@ class CrossSessionVectorStore:
                 cur.close()
 
     def clear(self, tenant_id: Optional[str] = None):
-        with self._lock:
             cur = self._cur()
             try:
                 if tenant_id:
@@ -473,7 +472,7 @@ class CrossSessionVectorStore:
                 else:
                     cur.execute(f"DELETE FROM {self.table_name}")
                     print("Database cleared")
-                self._conn.commit()
+                self._commit()
             except Exception as e:
                 print(f"Error clearing entries: {e}")
             finally:
@@ -483,7 +482,10 @@ class CrossSessionVectorStore:
         pass
 
     def close(self) -> None:
-        try:
-            self._conn.close()
-        except Exception:
-            pass
+        conn = getattr(_local, "conn", None)
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _local.conn = None

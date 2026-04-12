@@ -479,7 +479,7 @@ def create_app(
     """Create a complete FastAPI application with the cross-session router.
 
     If *orchestrator* is ``None`` a minimal ``SessionManager`` will be
-    constructed using default SQLite and LanceDB paths derived from
+    constructed using default SQLite and IRIS connection settings derived from
     *project*.
 
     Parameters

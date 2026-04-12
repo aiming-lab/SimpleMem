@@ -95,7 +95,11 @@ SESSION_EXPIRY_MINUTES = 30
 
 settings = get_settings()
 user_store = UserStore(settings.user_db_path)
-vector_store = MultiTenantVectorStore(settings.lancedb_path, settings.embedding_dimension)
+vector_store = MultiTenantVectorStore(
+    embedding_function=None,
+    settings=settings,
+    embedding_dimension=settings.embedding_dimension,
+)
 token_manager = TokenManager(
     secret_key=settings.jwt_secret_key,
     encryption_key=settings.encryption_key,

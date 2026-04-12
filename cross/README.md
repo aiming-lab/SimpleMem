@@ -19,7 +19,7 @@
   <br/>
   <a href="#-http-api"><img src="https://img.shields.io/badge/REST_API-FastAPI-009688?style=flat&labelColor=555&logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="#-mcp-integration"><img src="https://img.shields.io/badge/MCP-8_tools-5865F2?style=flat&labelColor=555" alt="MCP Tools"></a>
-  <a href="#"><img src="https://img.shields.io/badge/storage-SQLite_+_LanceDB-FF6B6B?style=flat&labelColor=555" alt="Storage"></a>
+  <a href="#"><img src="https://img.shields.io/badge/storage-SQLite_+_IRIS-00A4EF?style=flat&labelColor=555" alt="Storage"></a>
 </p>
 
 <br/>
@@ -131,7 +131,7 @@ SimpleMem-Cross uses the same dependencies as SimpleMem, plus standard library `
 pip install -r requirements.txt
 ```
 
-> **Note**: No additional packages required. LanceDB and Pydantic are already in the SimpleMem dependency tree.
+> **Note**: No additional packages required beyond `intersystems-irispython`. Pydantic is already in the SimpleMem dependency tree.
 
 ---
 
@@ -180,7 +180,7 @@ pip install -r requirements.txt
                              ▼
           ┌───────────────────────────────────────┐
           │    Cross-Session Vector Store         │
-          │           (LanceDB)                   │
+          │           (IRIS)                   │
           │    ═══════════════════════════        │
           │  • Semantic search (1024-d vectors)   │
           │  • Keyword matching (BM25-style)      │
@@ -204,7 +204,7 @@ pip install -r requirements.txt
 |-----------|----------------|
 | **Composition over modification** | Original SimpleMem is wrapped, never edited |
 | **SQLite for session timeline** | Sessions, events, observations, summaries |
-| **LanceDB for vectors** | Cross-session memory entries with provenance |
+| **IRIS for vectors** | Cross-session memory entries with HNSW index |
 | **Hook-based lifecycle** | `SessionStart → UserMessage/ToolUse → Stop → End` |
 | **Progressive disclosure** | Token-budgeted context injection at session start |
 | **Provenance tracking** | Every vector links back to its source evidence |
@@ -217,7 +217,7 @@ pip install -r requirements.txt
 |:-------|------:|:------------|
 | `types.py` | 227 | 📋 Pydantic models — enums, records, ContextBundle, FinalizationReport |
 | `storage_sqlite.py` | 805 | 🗄️ SQLite backend — 6 tables (sessions, events, observations, summaries) |
-| `storage_lancedb.py` | 542 | 🔍 LanceDB vector store — semantic/keyword/structured search |
+| `storage_iris.py` | — | 🔍 IRIS SQL vector store — semantic/keyword/structured search |
 | `hooks.py` | 401 | 🪝 Abstract `SessionHooks` with 5 async lifecycle methods |
 | `collectors.py` | 413 | 📝 `RedactionFilter` (3-tier regex), thread-safe `EventCollector` |
 | `session_manager.py` | 755 | 🔄 Full lifecycle orchestration — start/record/finalize/end |
@@ -383,7 +383,7 @@ result = await tools.call_tool("cross_session_start", {
 | Setting | Default | Description |
 |:--------|:--------|:------------|
 | SQLite DB | `~/.simplemem-cross/cross_memory.db` | Session metadata, events, observations |
-| LanceDB | `~/.simplemem-cross/lancedb_cross` | Vector storage for memory entries |
+| IRIS | `cross_memory_entries` table (auto-created) | Vector storage for memory entries |
 | Max context tokens | `2000` | Token budget for context injection |
 
 ### 🔧 Custom Configuration
@@ -393,7 +393,7 @@ orch = create_orchestrator(
     project="my-project",
     tenant_id="team-alpha",
     db_path="/custom/path/memory.db",
-    lancedb_path="/custom/path/lancedb",
+    iris_table="my_cross_entries",
     max_context_tokens=3000,
 )
 ```
@@ -440,7 +440,7 @@ pytest cross/tests/test_storage.py -v
 pytest cross/tests/test_e2e.py -v
 ```
 
-> **Note**: Tests use real SQLite (temp databases) and mock LanceDB. No external services, API keys, or GPU required.
+> **Note**: Tests use real SQLite (temp databases) and mock IRIS vector store. No external services, API keys, or GPU required.
 
 ---
 

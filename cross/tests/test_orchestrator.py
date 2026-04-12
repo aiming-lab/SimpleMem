@@ -54,7 +54,7 @@ def _make_orchestrator(
         project=PROJECT,
         tenant_id=TENANT,
         db_path=str(tmp_path / "test.db"),
-        lancedb_path=str(tmp_path / "lancedb"),
+        iris_table="pytest_cross_entries",
     )
 
 
@@ -389,7 +389,7 @@ class TestCreateOrchestrator:
                 PROJECT,
                 tenant_id=TENANT,
                 db_path=str(tmp_path / "factory.db"),
-                lancedb_path=str(tmp_path / "factory_lancedb"),
+                iris_table="pytest_cross_factory_entries",
                 max_context_tokens=500,
             )
 

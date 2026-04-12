@@ -116,7 +116,11 @@ config = SimpleMemConfig(
     openai_api_key="your-api-key",
     llm_model="gpt-4.1-mini",
     embedding_model="Qwen/Qwen3-Embedding-0.6B",
-    lancedb_path="./my_memory_db",
+    iris_hostname="localhost",
+    iris_port=1972,
+    iris_namespace="USER",
+    iris_username="_SYSTEM",
+    iris_password="SYS",
     enable_parallel_processing=True,
     max_parallel_workers=8,
 )
@@ -136,7 +140,12 @@ system = SimpleMemSystem(clear_db=True)
 | `openai_base_url` | str | None | Custom API endpoint |
 | `llm_model` | str | `"gpt-4.1-mini"` | LLM model name |
 | `embedding_model` | str | `"Qwen/Qwen3-Embedding-0.6B"` | Embedding model |
-| `lancedb_path` | str | `"./lancedb_data"` | Database storage path |
+| `iris_hostname` | str | `"localhost"` | IRIS server hostname |
+| `iris_port` | int | `1972` | IRIS superserver port |
+| `iris_namespace` | str | `"USER"` | IRIS namespace |
+| `iris_username` | str | `"_SYSTEM"` | IRIS username |
+| `iris_password` | str | `"SYS"` | IRIS password |
+| `memory_table_name` | str | `"memory_entries"` | IRIS table (auto-created) |
 | `enable_parallel_processing` | bool | True | Parallel memory building |
 | `max_parallel_workers` | int | 16 | Max workers for building |
 | `enable_parallel_retrieval` | bool | True | Parallel query execution |
@@ -375,7 +384,8 @@ SimpleMem supports the following environment variables:
 | `OPENAI_BASE_URL` | Custom API endpoint | None |
 | `SIMPLEMEM_MODEL` | LLM model name | `"gpt-4.1-mini"` |
 | `SIMPLEMEM_EMBEDDING_MODEL` | Embedding model | `"Qwen/Qwen3-Embedding-0.6B"` |
-| `SIMPLEMEM_DB_PATH` | Database storage path | `"./lancedb_data"` |
+| `SIMPLEMEM_IRIS_HOSTNAME` | IRIS server hostname | `"localhost"` |
+| `SIMPLEMEM_IRIS_PORT` | IRIS superserver port | `1972` |
 
 Example `.env` file:
 

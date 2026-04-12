@@ -184,7 +184,7 @@ class SessionManager:
     sqlite_storage:
         The relational backend for sessions, events, observations, summaries.
     vector_store:
-        The LanceDB-backed vector store for cross-session memory entries.
+        The IRIS-backed vector store for cross-session memory entries.
     simplemem:
         Optional reference to a ``SimpleMemSystem`` instance (duck-typed).
         When provided, finalization will also run the SimpleMem 3-stage
