@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/aiming-lab-simplemem-badge.png)](https://mseep.ai/app/aiming-lab-simplemem)
+
 <div align="center">
 
 <img alt="simplemem_logo" src="https://github.com/user-attachments/assets/6ea54ad1-e007-442c-99d7-1174b10d1fec" width="450">
