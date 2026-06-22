@@ -1,0 +1,96 @@
+## Summary
+
+Adds a pluggable PostgreSQL + pgvector backend implementing the same
+three-layer retrieval interface (semantic / keyword / structured) as the
+default LanceDB store, plus matching cross-session backends for persistent
+memory metadata.
+
+LanceDB remains the default — no existing deployments are affected.
+
+---
+
+## What's new
+
+**`simplemem/core/database/pg_vector_store.py`** — `PGVectorStore`
+- Semantic search via pgvector `<->` cosine operator + HNSW index
+- Keyword search via PostgreSQL `tsvector` / `plainto_tsquery` (generated
+  column, GIN index — replaces LanceDB Tantivy FTS)
+- Structured search via parameterized `WHERE` with JSON containment
+  (`::jsonb @> %s::jsonb`) — no SQL injection surface
+- Thread-local connections (`threading.local()`) matching the existing
+  parallelism model
+- `VACUUM ANALYZE` as `optimize()` equivalent
+
+**`simplemem/core/database/__init__.py`** — `get_vector_store()` factory
+- Returns `PGVectorStore` when `STORAGE_BACKEND=pgvector`, otherwise
+  `VectorStore` (LanceDB unchanged)
+
+**`simplemem/core/settings.py`**
+- Two new settings: `STORAGE_BACKEND` (default `"lancedb"`) and `PG_DSN`
+
+**`cross/storage_pg.py`** — `PGCrossVectorStore`
+- Same interface as the existing LanceDB cross-session vector store
+- `tenant_id` / `memory_session_id` filtering on all search methods
+
+**`cross/storage_pg_sql.py`** — `PGSQLStorage`
+- Drop-in replacement for `SQLiteStorage` — identical public interface
+- All tables prefixed (`cross_mem_*`) for namespace isolation
+- `RETURNING` clause for insert IDs
+
+**`cross/storage_factory.py`** (new file)
+- `create_sql_storage(use_pg=True, pg_dsn=..., pg_table_prefix=...)` —
+  priority: PG > SQLite (default)
+
+**`setup.py`**
+- New optional extra: `pip install simplemem[pgvector]` installs
+  `psycopg[binary]>=3.1` and `pgvector>=0.3`
+
+---
+
+## Schema
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE memory_entries (
+    entry_id              TEXT NOT NULL,
+    lossless_restatement  TEXT NOT NULL,
+    keywords TEXT, timestamp TEXT, location TEXT,
+    persons TEXT, entities TEXT, topic TEXT,
+    vec  vector(1024),
+    tsv  tsvector GENERATED ALWAYS AS (
+             to_tsvector('english', lossless_restatement)) STORED
+);
+
+CREATE INDEX ON memory_entries USING hnsw (vec vector_cosine_ops);
+CREATE INDEX ON memory_entries USING gin (tsv);
+```
+
+---
+
+## Opting in
+
+```python
+# config.py
+STORAGE_BACKEND = "pgvector"
+PG_DSN = "postgresql://user:pass@localhost:5432/mydb"
+```
+
+Or via environment variables — no code changes required.
+
+---
+
+## Tests
+
+| File | Tests | Run condition |
+|---|---|---|
+| `tests/test_pg_vector_store.py` | 11 | `PG_TEST_DSN` env var |
+| `cross/tests/test_pg_cross.py` | 35 | `PG_TEST_DSN` env var |
+
+All existing tests continue to pass. PG tests skip automatically without
+the env var — no test infrastructure changes required.
+
+```bash
+PG_TEST_DSN=postgresql://postgres:postgres@localhost:5432/simplemem_test \
+  pytest tests/test_pg_vector_store.py cross/tests/test_pg_cross.py -v
+```
