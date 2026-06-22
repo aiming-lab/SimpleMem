@@ -59,6 +59,13 @@ except ImportError:
     PGCrossVectorStore = None  # type: ignore[assignment,misc]
     PGSQLStorage = None  # type: ignore[assignment,misc]
 
+try:
+    from cross.storage_pg import PGCrossVectorStore
+    from cross.storage_pg_sql import PGSQLStorage
+except ImportError:
+    PGCrossVectorStore = None  # type: ignore[assignment,misc]
+    PGSQLStorage = None  # type: ignore[assignment,misc]
+
 # -- Core logic ----------------------------------------------------------------
 from cross.collectors import EventCollector, ObservationExtractor, RedactionFilter
 from cross.session_manager import SessionManager
