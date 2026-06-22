@@ -19,7 +19,10 @@ from cross.types import (
     SessionSummary,
 )
 from cross.storage_sqlite import SQLiteStorage
-from cross.storage_iris import CrossSessionVectorStore
+try:
+    from cross.storage_iris import CrossSessionVectorStore
+except ImportError:
+    CrossSessionVectorStore = None  # type: ignore[assignment,misc]
 
 try:
     from cross.collectors import EventCollector, ObservationExtractor

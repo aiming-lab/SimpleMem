@@ -27,7 +27,10 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from cross.storage_iris import CrossSessionVectorStore
+try:
+    from cross.storage_iris import CrossSessionVectorStore
+except ImportError:
+    CrossSessionVectorStore = None  # type: ignore[assignment,misc]
 from cross.storage_sqlite import SQLiteStorage
 from cross.types import ConsolidationRun
 
