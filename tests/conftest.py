@@ -51,8 +51,31 @@ def _test_entries():
     ]
 
 
+def _iris_available() -> bool:
+    try:
+        import iris.dbapi as dbapi
+        import config
+        conn = dbapi.connect(config.IRIS_HOSTNAME, IRIS_PORT,
+                             config.IRIS_NAMESPACE, config.IRIS_USERNAME,
+                             config.IRIS_PASSWORD)
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+requires_iris = pytest.mark.skipif(
+    not _iris_available(),
+    reason="No IRIS instance reachable — set IRIS_PORT or start a container",
+)
+
+
 @pytest.fixture
-def store():
+def store(request):
+    request.node.add_marker(requires_iris)
+    if not _iris_available():
+        pytest.skip("No IRIS instance reachable")
+
     import config
     config.IRIS_PORT = IRIS_PORT
 

@@ -7,8 +7,8 @@ from typing import List, Optional
 
 import iris.dbapi as dbapi
 
-from models.memory_entry import MemoryEntry
-from utils.embedding import EmbeddingModel
+from simplemem.core.models.memory_entry import MemoryEntry
+from simplemem.core.utils.embedding import EmbeddingModel
 from cross.types import CrossMemoryEntry
 import config
 
