@@ -5,7 +5,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-IRIS_PORT = int(os.environ.get("IRIS_PORT", "1972"))
+import config as _config
+IRIS_PORT = int(os.environ.get("IRIS_PORT", str(_config.IRIS_PORT)))
 
 
 class _FakeEmbedder:
@@ -19,7 +20,7 @@ class _FakeEmbedder:
 
 
 def _test_entries():
-    from models.memory_entry import MemoryEntry
+    from simplemem.core.models.memory_entry import MemoryEntry
     return [
         MemoryEntry(
             lossless_restatement="Alice suggested meeting at Starbucks on 2025-01-15 at 2pm",
@@ -54,10 +55,9 @@ def _test_entries():
 def _iris_available() -> bool:
     try:
         import iris.dbapi as dbapi
-        import config
-        conn = dbapi.connect(config.IRIS_HOSTNAME, IRIS_PORT,
-                             config.IRIS_NAMESPACE, config.IRIS_USERNAME,
-                             config.IRIS_PASSWORD)
+        conn = dbapi.connect(_config.IRIS_HOSTNAME, IRIS_PORT,
+                             _config.IRIS_NAMESPACE, _config.IRIS_USERNAME,
+                             _config.IRIS_PASSWORD)
         conn.close()
         return True
     except Exception:
