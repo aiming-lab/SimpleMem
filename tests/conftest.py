@@ -87,7 +87,3 @@ def store(request):
     s.clear()
     s.close()
 
-
-@pytest.fixture
-def bucket_path():
-    pytest.skip("GCS bucket test requires cloud storage — not applicable to IRIS backend")
