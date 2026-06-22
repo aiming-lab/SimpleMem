@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleMem - MCP Server</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SimpleMem MCP Server</h1>
+            <p class="subtitle">Efficient Lifelong Memory for LLM Agents</p>
+        </header>
+
+        <main>
+            <!-- Registration Form -->
+            <section id="register-section" class="card">
+                <h2>Get Started</h2>
+                <p class="description">Enter your OpenRouter API Key to create your personal memory server instance.</p>
+
+                <form id="register-form">
+                    <div class="input-group">
+                        <label for="api-key">OpenRouter API Key</label>
+                        <input
+                            type="password"
+                            id="api-key"
+                            placeholder="sk-or-v1-..."
+                            autocomplete="off"
+                            required
+                        >
+                        <p class="input-hint">Get your API key from <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>. This is NOT an OpenAI key.</p>
+                    </div>
+                    <button type="submit" id="submit-btn">
+                        <span class="btn-text">Get Access Token</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span>
+                            Validating...
+                        </span>
+                    </button>
+                </form>
+
+                <p class="note">
+                    Your API key is encrypted and securely stored. It's only used to call OpenRouter APIs on your behalf.
+                </p>
+            </section>
+
+            <!-- Result Section (Hidden by default) -->
+            <section id="result-section" class="card" style="display: none;">
+                <h2>Your Memory Server</h2>
+
+                <div class="warning-box">
+                    <strong>Important:</strong> Save your Access Token now! It cannot be retrieved or modified later. If lost, you'll need to register again with a new API key.
+                </div>
+
+                <div class="result-item">
+                    <label>Access Token</label>
+                    <div class="result-value" id="token-value"></div>
+                    <button class="copy-btn" onclick="copyToClipboard('token-value')">Copy</button>
+                </div>
+
+                <div class="result-item">
+                    <label>API Endpoint</label>
+                    <div class="result-value" id="endpoint-value"></div>
+                    <button class="copy-btn" onclick="copyToClipboard('endpoint-value')">Copy</button>
+                </div>
+
+                <div class="result-item">
+                    <label>User ID</label>
+                    <div class="result-value" id="user-id-value"></div>
+                </div>
+
+                <div class="config-section">
+                    <h3>MCP JSON Configuration</h3>
+                    <p class="description">Add this to your MCP client settings (Streamable HTTP):</p>
+                    <pre id="claude-config"></pre>
+                    <button class="copy-btn full-width" onclick="copyConfig()">Copy Configuration</button>
+                    <p class="note" style="margin-top: 12px;">
+                        Uses MCP 2025-03-26 Streamable HTTP transport with Bearer token authentication.
+                    </p>
+                </div>
+
+                <button class="secondary-btn" onclick="resetForm()">Register Another Key</button>
+            </section>
+
+            <!-- Error Section -->
+            <section id="error-section" class="card error" style="display: none;">
+                <h2>Error</h2>
+                <p id="error-message"></p>
+                <button class="secondary-btn" onclick="hideError()">Try Again</button>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by <a href="https://aiming-lab.github.io/SimpleMem-Page/" target="_blank">SimpleMem</a></p>
+            <p class="version">v1.0.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+"""
+Configuration file - System parameters and LLM settings
+
+IMPORTANT:
+1. Copy this file to config.py
+2. Configure your settings below
+3. Never commit config.py to version control (it contains your API key)
+"""
+
+# ============================================================================
+# OpenRouter Configuration (Unified API Gateway)
+# ============================================================================
+
+# OpenRouter API Key (required)
+# Get your key from: https://openrouter.ai/keys
+# OpenRouter keys start with "sk-or-"
+OPENROUTER_API_KEY = "your-openrouter-api-key-here"
+
+# OpenRouter Base URL (default, usually no need to change)
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# LLM Model (via OpenRouter)
+# See all models: https://openrouter.ai/models
+LLM_MODEL = "openai/gpt-4.1-mini"
+
+# Embedding Model (via OpenRouter)
+EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
+
+# Embedding dimension (must match model)
+EMBEDDING_DIMENSION = 4096
+
+
+# ============================================================================
+# Advanced Settings
+# ============================================================================
+
+# Temperature for LLM responses (0.0 = deterministic, 2.0 = very random)
+TEMPERATURE = 0.1
+
+# Maximum tokens for LLM responses (None = model default)
+MAX_TOKENS = None
+
+
+# ============================================================================
+# Memory Building Parameters
+# ============================================================================
+
+# Number of dialogues per window (for locomo; for other dataset, please finetune it)
+WINDOW_SIZE = 40
+
+# Window overlap size (for context continuity)
+OVERLAP_SIZE = 2
+
+
+# ============================================================================
+# Retrieval Parameters
+# ============================================================================
+
+# Max entries returned by semantic search (vector similarity)
+SEMANTIC_TOP_K = 25
+
+# Max entries returned by keyword search (BM25 matching)
+KEYWORD_TOP_K = 5
+
+# Max entries returned by structured search (metadata filtering)
+STRUCTURED_TOP_K = 5
+
+
+# ============================================================================
+# Database Configuration
+# ============================================================================
+
+# Path to LanceDB storage (relative to skill root)
+LANCEDB_PATH = "./data/lancedb"
+
+# Memory table name
+MEMORY_TABLE_NAME = "memory_entries"
+
+
+# ============================================================================
+# Parallel Processing Configuration
+# ============================================================================
+
+# Memory Building Parallel Processing
+ENABLE_PARALLEL_PROCESSING = True
+MAX_PARALLEL_WORKERS = 16
+
+# Retrieval Parallel Processing  
+ENABLE_PARALLEL_RETRIEVAL = True
+MAX_RETRIEVAL_WORKERS = 8
+
+# Planning and Reflection Configuration
+ENABLE_PLANNING = True
+ENABLE_REFLECTION = True
+MAX_REFLECTION_ROUNDS = 2

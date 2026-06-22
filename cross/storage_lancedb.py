@@ -17,8 +17,8 @@ import threading
 import lancedb  # type: ignore[import-not-found]
 import pyarrow as pa  # type: ignore[import-not-found]
 
-from models.memory_entry import MemoryEntry
-from utils.embedding import EmbeddingModel
+from simplemem.core.models.memory_entry import MemoryEntry
+from simplemem.core.utils.embedding import EmbeddingModel
 from cross.types import CrossMemoryEntry
 
 

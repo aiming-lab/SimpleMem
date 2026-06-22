@@ -3,14 +3,14 @@ SimpleMem - Efficient Lifelong Memory for LLM Agents
 Main system class integrating all components
 """
 from typing import List, Optional
-from models.memory_entry import Dialogue, MemoryEntry
-from utils.llm_client import LLMClient
-from utils.embedding import EmbeddingModel
-from database.vector_store import VectorStore
-from core.memory_builder import MemoryBuilder
-from core.hybrid_retriever import HybridRetriever
-from core.answer_generator import AnswerGenerator
-import config
+from simplemem.core.models.memory_entry import Dialogue, MemoryEntry
+from simplemem.core.utils.llm_client import LLMClient
+from simplemem.core.utils.embedding import EmbeddingModel
+from simplemem.core.database.vector_store import VectorStore
+from simplemem.core.memory_builder import MemoryBuilder
+from simplemem.core.hybrid_retriever import HybridRetriever
+from simplemem.core.answer_generator import AnswerGenerator
+from simplemem.core.settings import settings as config
 
 
 class SimpleMemSystem:

@@ -57,8 +57,8 @@ env/
 *~
 .DS_Store
 
-# Configuration files with secrets
-config.py
+# Configuration files with secrets (root-level only; contains API keys)
+/config.py
 *.env
 .env
 
@@ -67,6 +67,8 @@ config.py
 *.sqlite
 *.sqlite3
 lancedb_data/
+omni_memory_data/
+evolution_results/
 
 # Log files
 *.log

@@ -6,8 +6,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.vector_store import VectorStore
-from models.memory_entry import MemoryEntry
+from simplemem.core.database.vector_store import VectorStore
+from simplemem.core.models.memory_entry import MemoryEntry
 
 
 def create_test_entries():

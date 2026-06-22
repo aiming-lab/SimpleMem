@@ -1,16 +1,16 @@
 <div align="center">
 
-<img alt="simplemem_logo" src="https://github.com/user-attachments/assets/6ea54ad1-e007-442c-99d7-1174b10d1fec" width="450">
+<img alt="SimpleMem ロゴ" src="https://github.com/user-attachments/assets/6ea54ad1-e007-442c-99d7-1174b10d1fec" width="450">
 
 <div align="center">
 
-## LLMエージェントのための効率的な生涯記憶 — Text & Multimodal
+## LLMエージェントのための効率的な生涯記憶 — テキスト & マルチモーダル
 
-<small>意味的無損失圧縮により、長期記憶の保存・圧縮・検索を実現。Claude、Cursor、LM Studioなど多数のプラットフォームに対応。</small>
+<small>意味的ロスレス圧縮による長期記憶の保存・圧縮・検索。テキスト、画像、音声、動画のマルチモーダルサポートを追加。</small>
 
 </div>
 
-<p><b>MCPまたはPython統合をサポートするあらゆるAIプラットフォームで動作</b></p>
+<p><b>MCP（テキストメモリ）またはPython統合（完全マルチモーダル）をサポートするあらゆるAIプラットフォームで動作</b></p>
 
 <table>
 <tr>
@@ -64,7 +64,7 @@
 </td>
 
 <td align="center" width="100">
-  <sub><b>+ あらゆる MCP<br/>クライアント</b></sub>
+  <sub><b>+ その他すべての MCP<br/>クライアント</b></sub>
 </td>
 
 </tr>
@@ -74,8 +74,9 @@
 
 <br/>
 
+[🇬🇧 English](../../README.md) •
 [🇨🇳 中文](./README.zh-CN.md) •
-[🇯🇵 **日本語**](./README.ja.md) •
+**🇯🇵 日本語** •
 [🇰🇷 한국어](./README.ko.md) •
 [🇪🇸 Español](./README.es.md) •
 [🇫🇷 Français](./README.fr.md) •
@@ -89,26 +90,26 @@
 
 <br/>
 
-[![Project Page](https://img.shields.io/badge/🎬_インタラクティブデモ-ウェブサイトへ-FF6B6B?style=for-the-badge&labelColor=FF6B6B&color=4ECDC4&logoColor=white)](https://aiming-lab.github.io/SimpleMem-Page)
+[![Project Page](https://img.shields.io/badge/🎬_INTERACTIVE_DEMO-Visit_Our_Website-FF6B6B?style=for-the-badge&labelColor=FF6B6B&color=4ECDC4&logoColor=white)](https://aiming-lab.github.io/SimpleMem-Page)
 
 <p align="center">
   <a href="https://arxiv.org/abs/2601.02553"><img src="https://img.shields.io/badge/arXiv-2601.02553-b31b1b?style=flat&labelColor=555" alt="arXiv"></a>
   <a href="https://github.com/aiming-lab/SimpleMem"><img src="https://img.shields.io/badge/github-SimpleMem-181717?style=flat&labelColor=555&logo=github&logoColor=white" alt="GitHub"></a>
-  <a href="../../LICENSE"><img src="https://img.shields.io/github/license/aiming-lab/SimpleMem?style=flat&label=license&labelColor=555&color=2EA44F" alt="License"></a>
-  <a href="https://github.com/aiming-lab/SimpleMem/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat&labelColor=555" alt="PRs Welcome"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/github/license/aiming-lab/SimpleMem?style=flat&label=license&labelColor=555&color=2EA44F" alt="ライセンス"></a>
+  <a href="https://github.com/aiming-lab/SimpleMem/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat&labelColor=555" alt="PRs 歓迎"></a>
   <br/>
   <a href="https://pypi.org/project/simplemem/"><img src="https://img.shields.io/pypi/v/simplemem?style=flat&label=pypi&labelColor=555&color=3775A9&logo=pypi&logoColor=white" alt="PyPI"></a>
   <a href="https://pypi.org/project/simplemem/"><img src="https://img.shields.io/pypi/pyversions/simplemem?style=flat&label=python&labelColor=555&color=3775A9&logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://mcp.simplemem.cloud"><img src="https://img.shields.io/badge/MCP-mcp.simplemem.cloud-14B8A6?style=flat&labelColor=555" alt="MCP Server"></a>
+  <a href="https://mcp.simplemem.cloud"><img src="https://img.shields.io/badge/MCP-mcp.simplemem.cloud-14B8A6?style=flat&labelColor=555" alt="MCP サーバー"></a>
   <a href="https://github.com/aiming-lab/SimpleMem"><img src="https://img.shields.io/badge/Claude_Skills-supported-FFB000?style=flat&labelColor=555" alt="Claude Skills"></a>
   <br/>
-  <a href="https://discord.gg/KA2zC32M"><img src="https://img.shields.io/badge/Discord-チャットに参加-5865F2?style=flat&labelColor=555&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="../../fig/wechat_logo3.JPG"><img src="https://img.shields.io/badge/WeChat-グループ-07C160?style=flat&labelColor=555&logo=wechat&logoColor=white" alt="WeChat"></a>
+  <a href="https://discord.gg/KA2zC32M"><img src="https://img.shields.io/badge/Discord-Join_Chat-5865F2?style=flat&labelColor=555&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="../../fig/wechat_logo3.JPG"><img src="https://img.shields.io/badge/WeChat-Group-07C160?style=flat&labelColor=555&logo=wechat&logoColor=white" alt="WeChat"></a>
 </p>
 
 <br/>
 
-[概要](#-概要) • [クイックスタート](#-クイックスタート) • [MCPサーバー](#-mcpサーバー) • [評価](#-評価) • [引用](#-引用)
+[🚀 クイックスタート](#-クイックスタート) • [🌟 概要](#-概要) • [📦 インストール](#-インストール) • [🔌 MCP サーバー](#-mcp-サーバーテキストメモリ) • [📊 再現](#-論文結果の再現) • [📝 引用](#-引用)
 
 </div>
 
@@ -116,208 +117,194 @@
 
 <br/>
 
-## 🔥 最新情報
+## 🔥 ニュース
 
-- **[02/09/2026]** 🚀 **クロスセッションメモリ機能リリース - Claude-Memを64%上回る性能！** SimpleMem は**会話をまたいだ永続メモリ**をサポートしました。LoCoMo ベンチマークで、Claude-Mem に対して **64% の性能向上**を達成。エージェントは過去のセッションからコンテキスト、決定、学習内容を自動的に呼び出せます。[クロスセッションメモリのドキュメントを見る →](../../cross/README.md)
-- **[01/20/2026]** **SimpleMem が PyPI に公開されました！** 📦 `pip install simplemem` で直接インストールできます。[パッケージ使用ガイドを見る →](../PACKAGE_USAGE.md)
-- **[01/19/2026]** **SimpleMem Skill にローカルメモリストレージを追加！** 💾 Claude Skills 内でのローカルメモリ保存・管理に対応しました。
-- **[01/18/2026]** **SimpleMem が Claude Skills に対応！** 🚀 claude.ai で会話間の長期記憶を実現。[mcp.simplemem.cloud](https://mcp.simplemem.cloud) で登録し、トークンを設定してスキルをインポートしてください！
-- **[01/14/2026]** **SimpleMem MCP サーバーが正式公開＆オープンソース化！** 🎉 クラウドメモリサービスが [mcp.simplemem.cloud](https://mcp.simplemem.cloud) で利用可能に。LM Studio、Cherry Studio、Cursor、Claude Desktop と **Streamable HTTP** MCP プロトコルで統合。[MCP ドキュメントを見る →](../../MCP/README.md)
-- **[01/08/2026]** 🔥 [Discord](https://discord.gg/KA2zC32M) と [WeChat グループ](../../fig/wechat_logo3.JPG)に参加して、コラボレーションやアイデア交換をしましょう！
-- **[01/05/2026]** SimpleMem の論文が [arXiv](https://arxiv.org/abs/2601.02553) で公開されました！
+- **[05/21/2026]** 📦 **統合 `simplemem` パッケージ — インポート一つで自動ルーティング！** SimpleMem、Omni-SimpleMem、EvolveMem が単一のパッケージに統合されました。`from simplemem import SimpleMem` は最初に呼び出すメソッドに応じてテキストまたはマルチモーダルバックエンドを自動選択し、`simplemem.optimize(...)` は EvolveMem の自己進化ループを活用します。`pip install -e .` でワンステップインストール。
+- **[05/14/2026]** 🧬 **EvolveMem (v3.0) — AutoResearch による自己進化型メモリ！** 検索インフラ自体が LLM 駆動のクローズドループ診断により自己進化します。LoCoMo では最強のベースラインを **+25.7% 相対的**に上回り、MemBench では **+18.9% 相対的**に上回ります。システムは元の設計には存在しなかった全く新しい検索次元を発見します。[EvolveMem を見る →](../../EvolveMem/)
+- **[04/02/2026]** 🧠 **Omni-SimpleMem (v2.0) — マルチモーダルメモリ登場！** SimpleMem が **テキスト、画像、音声 & 動画** のメモリをサポートするようになりました。**LoCoMo で新 SOTA 達成 (F1=0.613, +47%)** および **Mem-Gallery (F1=0.810, +51%)** を従来の最高性能を超えて達成。[Omni-SimpleMem を見る →](../../OmniSimpleMem/)
+- **[02/09/2026]** 🚀 **クロスセッションメモリ — Claude-Mem を 64% 上回る！** [クロスセッションドキュメントを見る →](../../cross/README.md)
+- **[01/20/2026]** 📦 **SimpleMem が PyPI で利用可能になりました！** `pip install simplemem` でインストール。[パッケージ利用ガイドを見る →](../PACKAGE_USAGE.md)
+- **[01/14/2026]** 🎉 **SimpleMem MCP サーバーが稼働開始！** [mcp.simplemem.cloud](https://mcp.simplemem.cloud) でクラウドホスティング。[MCP ドキュメントを見る →](../../MCP/README.md)
+- **[01/05/2026]** SimpleMem 論文が [arXiv](https://arxiv.org/abs/2601.02553) で公開されました！
 
 ---
 
 ## 📑 目次
 
+- [🚀 クイックスタート](#-クイックスタート)
 - [🌟 概要](#-概要)
-- [🎯 主要貢献](#-主要貢献)
-- [🚀 パフォーマンスハイライト](#-パフォーマンスハイライト)
 - [📦 インストール](#-インストール)
-- [⚡ クイックスタート](#-クイックスタート)
-- [🔌 MCPサーバー](#-mcpサーバー)
-- [📊 評価](#-評価)
+- [🐳 Docker](#-docker-で実行)
+- [🔌 MCP サーバー](#-mcp-サーバーテキストメモリ)
+- [📊 論文結果の再現](#-論文結果の再現)
+- [🗺️ ロードマップ](#️-ロードマップ)
 - [📝 引用](#-引用)
-- [📄 ライセンス](#-ライセンス)
-- [🙏 謝辞](#-謝辞)
+
+---
+
+## 🚀 クイックスタート
+
+### 🧠 基本的なワークフローの理解
+
+大まかに言えば、SimpleMem は LLM ベースのエージェントのための長期記憶システムとして機能します。ワークフローは三つのシンプルなステップで構成されています：
+
+1. **情報を保存する** — 対話や事実が処理され、構造化されたアトミックなメモリに変換されます。
+2. **メモリをインデックスする** — 保存されたメモリが意味埋め込みと構造化メタデータを使って整理されます。
+3. **関連メモリを検索する** — クエリが行われると、SimpleMem はキーワードではなく意味に基づいて最も関連性の高い保存情報を検索します。
+
+この設計により、LLM エージェントはコンテキストを維持し、過去の情報を効率的に思い出し、冗長な履歴を繰り返し処理することを避けられます。
+
+### 🎓 基本的な使い方
+
+SimpleMem は単一の `simplemem` パッケージとして提供されます。デフォルトの `mode="auto"` は、呼び出す内容に基づいてどのバックエンドを使用するかを **自動検出** します — 手動設定は不要です：
+
+```python
+from simplemem import SimpleMem
+
+mem = SimpleMem()  # mode="auto" — バックエンドは最初の呼び出しで決まる
+```
+
+最初に呼び出すメソッドがバックエンドを決定します：
+
+| 最初の呼び出し | 選択されるバックエンド | 理由 |
+|:--|:--|:--|
+| `add_dialogue()` | **テキスト** (SimpleMem) | 対話ベース API → テキストモード |
+| `add_text()` / `add_image()` / `add_audio()` / `add_video()` | **Omni** (Omni-SimpleMem) | マルチモーダル API → omni モード |
+
+<table>
+<tr>
+<td width="50%">
+
+**📝 Auto → テキスト** (純テキスト入力)
+
+```python
+from simplemem import SimpleMem
+
+mem = SimpleMem()  # auto mode
+
+# add_dialogue() → テキストバックエンドが自動選択
+mem.add_dialogue(
+    "Alice",
+    "Bob, let's meet at Starbucks tomorrow at 2pm",
+    "2025-11-15T14:30:00",
+)
+mem.add_dialogue(
+    "Bob",
+    "Sure, I'll bring the market analysis report",
+    "2025-11-15T14:31:00",
+)
+mem.finalize()
+
+answer = mem.ask("When and where will Alice and Bob meet?")
+# → "16 November 2025 at 2:00 PM at Starbucks"
+```
+
+</td>
+<td width="50%">
+
+**🧠 Auto → Omni** (マルチモーダル入力)
+
+```python
+from simplemem import SimpleMem
+
+mem = SimpleMem()  # auto mode
+
+# add_image() → omni バックエンドが自動選択
+mem.add_text(
+    "User loves hiking in the Rocky Mountains.",
+    tags=["session_id:D1"],
+)
+mem.add_image("photo.jpg", tags=["session_id:D1"])
+mem.add_audio("voice_note.wav", tags=["session_id:D1"])
+
+result = mem.query("What does the user enjoy?", top_k=5)
+for item in result.items:
+    print(item["summary"])
+
+mem.close()
+```
+
+</td>
+</tr>
+</table>
+
+> **💡 ヒント**: Auto モードはデータに合った最も軽量なバックエンドを選択します。必要に応じて `mode="text"` または `mode="omni"` を明示的に指定することもできます。
+
+---
+
+### 🧬 上級：検索設定の最適化
+
+開発用データセットでオフラインに検索ハイパーパラメータを調整し、結果として得られた `Config` を推論に展開します。これは EvolveMem の自己進化ループの薄いラッパーです：
+
+```python
+import simplemem
+from simplemem import SimpleMem, load_config
+
+# mem はメモリが既に構築済みのファイナライズされた SimpleMem インスタンス
+dev_questions = [
+    ("When is the meeting?", "2pm tomorrow at Starbucks"),
+    ("What should Bob prepare?", "market analysis report"),
+]
+config = simplemem.optimize(mem, dev_questions, max_rounds=3)
+config.save("my_config.json")
+
+# 後で、最適化された設定で展開
+config = load_config("my_config.json")
+mem = SimpleMem(config=config)
+```
+
+> EvolveMem は開発用の質問に対して LLM 駆動の 評価 → 診断 → 提案 → ガード サイクルを実行し、グローバルな検索フラグ（top_k、フュージョンモード、回答検証、リフレクションラウンドなど）を調整します。ベンチマークアダプターとカテゴリ別オーバーライドを持つ完全なスタンドアロン版については [`EvolveMem/`](../../EvolveMem/) を参照してください。
+
+---
+
+### 🚄 上級：並列処理
+
+大規模な対話処理には、並列モードを有効にします：
+
+```python
+from simplemem import create
+
+mem = create(
+    mode="text",
+    clear_db=True,
+    enable_parallel_processing=True,  # ⚡ 並列メモリ構築
+    max_parallel_workers=8,
+    enable_parallel_retrieval=True,   # 🔍 並列クエリ実行
+    max_retrieval_workers=4
+)
+```
+
+> **💡 プロヒント**: 並列処理はバッチ操作のレイテンシを大幅に削減します！
 
 ---
 
 ## 🌟 概要
 
-<div align="center">
-<img src="../../fig/Fig_tradeoff.png" alt="パフォーマンスと効率のトレードオフ" width="900"/>
+**SimpleMem** は LLM エージェントのための統合メモリスタックであり、一つの原則に基づいて構築されています：*意味的にロスレスな* メモリを高い情報密度で保存することで、エージェントがより多くを思い出しながら大幅に少ないトークンで済むようにすること。このパッケージは、同じ原則を共有しながらも問題の異なる部分を攻略する三つの研究をまとめています。
 
-*SimpleMem は最小限のトークンコスト（約550）で最高の F1 スコア（43.24%）を達成し、理想的な左上のポジションを占めています。*
-</div>
+### 📝 SimpleMem: 効率の核（テキスト）
 
-**SimpleMem** は**意味的無損失圧縮**に基づく効率的なメモリフレームワークで、**LLMエージェントの効率的な長期記憶**という根本的な課題に取り組んでいます。冗長なコンテキストを受動的に蓄積したり、高コストの反復推論ループに依存する既存システムとは異なり、SimpleMem は3段階のパイプラインを通じて**情報密度**と**トークン利用率**を最大化します：
+ほとんどのメモリシステムは悪いトレードオフを強いられています。生の対話履歴を受動的に蓄積するか（冗長でトークンを大量消費）、または高価な推論ループでノイズをフィルタリングするか（遅くてコストがかかる）のどちらかです。SimpleMem は代わりに三段階パイプラインで対話を圧縮します：
 
-<table>
-<tr>
-<td width="33%" align="center">
+| ステージ | 何をするか |
+|:--|:--|
+| **1. 意味的構造化圧縮** | 非構造化された対話をコンパクトなメモリユニット（共参照が解決され絶対タイムスタンプを持つ自己完結した事実）に蒸留し、柔軟な検索のために複数の補完的なビューでインデックスします。 |
+| **2. オンライン意味合成** | セッション内の関連コンテキストを統合された抽象表現にマージし、クエリ時ではなくメモリ構築時に冗長性を除去します。 |
+| **3. 意図認識型検索計画** | クエリの背後にある検索意図を推測し、何を検索するかを決定して精密でコンパクトなコンテキストを組み立てます。 |
 
-### 🔍 ステージ 1
-**意味的構造化圧縮**
+LoCoMo ベンチマークでは、推論時のトークン消費を約 30 分の 1 に削減しながら、先行システムと比較して平均 F1 スコアが 26.4% 向上します。メカニズムの詳細（ハイブリッドインデックス層、圧縮例、検索計画）：[**SimpleMem テキストメモリ →**](../text-memory.md)。
 
-非構造化インタラクションをコンパクトなマルチビューインデックス付きメモリユニットに蒸留
+### 🧠 Omni-SimpleMem: マルチモーダルメモリ（テキスト、画像、音声、動画）
 
-</td>
-<td width="33%" align="center">
+Omni-SimpleMem は圧縮優先の哲学を四つのモダリティに拡張し、三つの原則に基づいて構築されています：**選択的取り込み**（モダリティごとのエントロピー駆動フィルタリング）、**段階的検索**（ピラミッドトークンバジェット拡張を伴うハイブリッド FAISS + BM25）、**知識グラフ拡張**（マルチホップクロスモーダル推論）。手作業で設計されるのではなく、そのアーキテクチャは二つのベンチマーク上で約 50 の実験を実行した自律的な研究パイプラインによって *発見* されました。このパイプラインは、ヒューマンループなしで失敗モードを診断し、アーキテクチャの変更を提案し、データパイプラインのバグを修復しさえしました。注目すべきことに、バグ修正とアーキテクチャの変更はハイパーパラメータ調整をすべて合わせたものよりも大きく貢献し、システムを素朴なベースラインから LoCoMo と Mem-Gallery の両方で最先端の状態へと引き上げました。完全なドキュメント：[**Omni-SimpleMem →**](../../OmniSimpleMem/)。
 
-### 🗂️ ステージ 2
-**オンライン意味合成**
+### 🧬 EvolveMem: 自己進化型検索
 
-セッション内プロセスで、関連コンテキストを統一された抽象表現に即座に統合し冗長性を排除
+EvolveMem は、ほぼすべてのメモリシステムが共有する盲点を解消します：保存されたコンテンツは進化しますが、*検索* 機構（スコアリング関数、フュージョン戦略、回答生成ポリシー）はデプロイ後に凍結されたままです。EvolveMem は クローズドループ AutoResearch プロセス（**評価 → 診断 → 提案 → ガード → 繰り返し**）を実行し、LLM が質問ごとの失敗を診断して設定変更を提案します。リグレッション時の自動ロールバックと停滞時の探索インセンティブでガードされています。元の設計にはない新しい検索次元（クエリ分解、エンティティスワップ、回答検証）を発見し、LoCoMo を最強のベースラインと比較して 25.7% 相対的に改善し、その進化した設定はベンチマーク間で正の転移を示します。完全なドキュメント：[**EvolveMem →**](../../EvolveMem/)。
 
-</td>
-<td width="33%" align="center">
+### 三つがどのように組み合わさるか
 
-### 🎯 ステージ 3
-**意図認識検索計画**
-
-検索意図を推論し、検索範囲を動的に決定して効率的に正確なコンテキストを構築
-
-</td>
-</tr>
-</table>
-
-<div align="center">
-<img src="../../fig/Fig_framework.png" alt="SimpleMem フレームワーク" width="900"/>
-
-*SimpleMem アーキテクチャ：(1) 意味的構造化圧縮が低効用の対話をフィルタリングし、情報ウィンドウをコンパクトでコンテキスト非依存のメモリユニットに変換。(2) オンライン意味合成が書き込み時に関連フラグメントを統合し、コンパクトで一貫性のあるメモリトポロジーを維持。(3) 意図認識検索計画が検索意図を推論して検索範囲とクエリ形式を適応させ、並列マルチビュー検索とトークン効率の良いコンテキスト構築を実現。*
-</div>
-
----
-
-### 🏆 パフォーマンス比較
-
-<div align="center">
-
-**速度比較デモ**
-
-<video src="https://github.com/aiming-lab/SimpleMem/raw/main/fig/simplemem-new.mp4" controls width="900"></video>
-
-*SimpleMem vs. ベースライン：リアルタイム速度比較デモンストレーション*
-
-</div>
-
-<div align="center">
-
-**LoCoMo-10 ベンチマーク結果（GPT-4.1-mini）**
-
-| モデル | ⏱️ 構築時間 | 🔎 検索時間 | ⚡ 合計時間 | 🎯 平均 F1 |
-|:------|:--------------------:|:-----------------:|:-------------:|:-------------:|
-| A-Mem | 5140.5s | 796.7s | 5937.2s | 32.58% |
-| LightMem | 97.8s | 577.1s | 675.9s | 24.63% |
-| Mem0 | 1350.9s | 583.4s | 1934.3s | 34.20% |
-| **SimpleMem** ⭐ | **92.6s** | **388.3s** | **480.9s** | **43.24%** |
-
-</div>
-
-> **💡 主な利点：**
-> - 🏆 **最高 F1 スコア**：43.24%（Mem0 比 +26.4%、LightMem 比 +75.6%）
-> - ⚡ **最速検索**：388.3s（LightMem より 32.7% 高速、Mem0 より 51.3% 高速）
-> - 🚀 **最速エンドツーエンド**：合計処理時間 480.9s（A-Mem の 12.5 倍高速）
-
----
-
-## 🎯 主要貢献
-
-### 1️⃣ 意味的構造化圧縮
-
-SimpleMem は LLM 生成プロセスに統合された**暗黙的意味密度ゲーティング**メカニズムを適用し、冗長なインタラクションコンテンツをフィルタリングします。システムは生の対話ストリームを**コンパクトなメモリユニット**（共参照が解決され絶対タイムスタンプが付与された自己完結型の事実）に再構成します。各ユニットは柔軟な検索のために3つの補完的表現でインデックスされます：
-
-<div align="center">
-
-| 🔍 レイヤー | 📊 タイプ | 🎯 目的 | 🛠️ 実装 |
-|---------|---------|------------|-------------------|
-| **意味的** | 密 | 概念的類似性 | ベクトル埋め込み（1024次元） |
-| **語彙的** | 疎 | 正確な用語マッチング | BM25スタイルキーワードインデックス |
-| **記号的** | メタデータ | 構造化フィルタリング | タイムスタンプ、エンティティ、人物 |
-
-</div>
-
-**✨ 変換例：**
-```diff
-- 入力：  "彼は明日午後2時にBobと会う"  [❌ 相対的、曖昧]
-+ 出力： "AliceはStarbucksで2025-11-16T14:00:00にBobと会う"  [✅ 絶対的、原子的]
-```
-
----
-
-### 2️⃣ オンライン意味合成
-
-非同期バックグラウンドメンテナンスに依存する従来のシステムとは異なり、SimpleMem は**書き込みフェーズ中にオンザフライで合成**を実行します。関連するメモリユニットは現在のセッションスコープ内でより高レベルの抽象表現に合成され、反復的または構造的に類似した経験を**即座にノイズ除去・圧縮**できます。
-
-**✨ 合成例：**
-```diff
-- フラグメント 1: "ユーザーはコーヒーが欲しい"
-- フラグメント 2: "ユーザーはオーツミルクを好む"
-- フラグメント 3: "ユーザーはホットが好き"
-+ 統合結果: "ユーザーはオーツミルク入りのホットコーヒーを好む"
-```
-
-この能動的な合成により、メモリトポロジーがコンパクトに保たれ、冗長なフラグメンテーションが回避されます。
-
----
-
-### 3️⃣ 意図認識検索計画
-
-固定深度の検索ではなく、SimpleMem は LLM の推論能力を活用して**包括的な検索計画**を生成します。クエリが与えられると、計画モジュールは**潜在的な検索意図**を推論し、検索範囲と深度を動的に決定します：
-
-$$\{ q_{\text{sem}}, q_{\text{lex}}, q_{\text{sym}}, d \} \sim \mathcal{P}(q, H)$$
-
-システムは意味的、語彙的、記号的インデックスにわたる**並列マルチビュー検索**を実行し、IDベースの重複排除で結果をマージします：
-
-<table>
-<tr>
-<td width="50%">
-
-**🔹 シンプルなクエリ**
-- 単一メモリユニットによる直接的な事実検索
-- 最小限の検索深度
-- 高速レスポンス
-
-</td>
-<td width="50%">
-
-**🔸 複雑なクエリ**
-- 複数イベントにわたる集約
-- 拡張された検索深度
-- 包括的なカバレッジ
-
-</td>
-</tr>
-</table>
-
-**📈 結果**：フルコンテキスト手法と比較して **30倍少ないトークン** で 43.24% の F1 スコアを達成。
-
----
-
-## 🚀 パフォーマンスハイライト
-
-### 📊 ベンチマーク結果（LoCoMo）
-
-<details>
-<summary><b>🔬 高性能モデル（GPT-4.1-mini）</b></summary>
-
-| タスクタイプ | SimpleMem F1 | Mem0 F1 | 改善 |
-|:----------|:------------:|:-------:|:-----------:|
-| **マルチホップ** | 43.46% | 30.14% | **+43.8%** |
-| **時間的** | 58.62% | 48.91% | **+19.9%** |
-| **シングルホップ** | 51.12% | 41.3% | **+23.8%** |
-
-</details>
-
-<details>
-<summary><b>⚙️ 効率的モデル（Qwen2.5-1.5B）</b></summary>
-
-| 指標 | SimpleMem | Mem0 | 備考 |
-|:-------|:---------:|:----:|:------|
-| **平均 F1** | 25.23% | 23.77% | 99倍小さいモデルでも競争力あり |
-
-</details>
+`from simplemem import SimpleMem` でマルチモーダルバックエンドへの自動ルーティングを持つテキストコアが得られ、`simplemem.optimize(...)` で EvolveMem があなた自身のデータ向けに検索を調整します。一つのパッケージ、一つのメンタルモデル：ロスレスに圧縮し、意図で検索し、システムが自己改善し続けるようにします。
 
 ---
 
@@ -325,14 +312,14 @@ $$\{ q_{\text{sem}}, q_{\text{lex}}, q_{\text{sym}}, d \} \sim \mathcal{P}(q, H)
 
 ### 📝 初めてのユーザーへの注意事項
 
-- **アクティブな環境で Python 3.10** を使用していることを確認してください（グローバルインストールだけでは不十分です）。
-- メモリ構築や検索を実行する前に、OpenAI 互換の API キーを設定する必要があります。設定しないと初期化が失敗する可能性があります。
-- OpenAI 以外のプロバイダー（Qwen や Azure OpenAI など）を使用する場合、`config.py` のモデル名と `OPENAI_BASE_URL` の両方を確認してください。
-- 大規模な対話データセットでは、並列処理を有効にすることでメモリ構築時間を大幅に短縮できます。
+- グローバルにインストールされているだけでなく、**アクティブな環境で Python 3.10+ を使用** していることを確認してください。
+- OpenAI 互換の API キーは、**メモリ構築や検索を実行する前に設定** する必要があります。そうしないと初期化が失敗する場合があります。
+- OpenAI 以外のプロバイダー（Qwen や Azure OpenAI など）を使用する場合は、`config.py` のモデル名と `OPENAI_BASE_URL` の両方を確認してください。
+- 大規模な対話データセットの場合、並列処理を有効にするとメモリ構築時間を大幅に削減できます。
 
 ### 📋 要件
 
-- 🐍 Python 3.10
+- 🐍 Python 3.10+
 - 🔑 OpenAI 互換 API（OpenAI、Qwen、Azure OpenAI など）
 
 ### 🛠️ セットアップ
@@ -342,12 +329,17 @@ $$\{ q_{\text{sem}}, q_{\text{lex}}, q_{\text{sym}}, d \} \sim \mathcal{P}(q, H)
 git clone https://github.com/aiming-lab/SimpleMem.git
 cd SimpleMem
 
-# 📦 依存関係をインストール
+# 📦 依存関係をインストール（固定バージョン）
 pip install -r requirements.txt
+
+# — または — 編集可能なパッケージとしてインストール
+pip install -e .                  # デフォルト: テキスト + マルチモーダル + エボルバー
+pip install -e ".[server]"        # + MCP / HTTP サーバー (mcp, fastapi, ...)
+pip install -e ".[all]"           # 開発ツールを含むすべて
 
 # ⚙️ API 設定を構成
 cp config.py.example config.py
-# config.py を編集してAPIキーと設定を入力
+# config.py を API キーと設定で編集
 ```
 
 ### ⚙️ 設定例
@@ -355,124 +347,85 @@ cp config.py.example config.py
 ```python
 # config.py
 OPENAI_API_KEY = "your-api-key"
-OPENAI_BASE_URL = None  # または Qwen/Azure のカスタムエンドポイント
+OPENAI_BASE_URL = None  # または Qwen/Azure 向けカスタムエンドポイント
 
 LLM_MODEL = "gpt-4.1-mini"
-EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # 最先端の検索性能
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # 最先端の検索
 ```
 
 ---
 
-## ⚡ クイックスタート
+## 🐳 Docker で実行
 
-### 🧠 基本ワークフローの理解
+**MCP サーバー** は一貫した隔離された環境のために Docker で実行できます。データ（LanceDB とユーザー DB）はホストボリュームに永続化されます。
 
-SimpleMem は LLM ベースのエージェントの長期記憶システムとして機能します。ワークフローは3つのシンプルなステップで構成されます：
+### 前提条件
 
-1. **情報の保存** – 対話や事実が処理され、構造化された原子的メモリに変換されます。
-2. **メモリのインデックス化** – 保存されたメモリが意味埋め込みと構造化メタデータを使用して整理されます。
-3. **関連メモリの検索** – クエリ時に、SimpleMem がキーワードではなく意味に基づいて最も関連性の高い保存情報を検索します。
+- [Docker](https://docs.docker.com/get-docker/) および [Docker Compose](https://docs.docker.com/compose/install/)
 
-この設計により、LLM エージェントはコンテキストを維持し、過去の情報を効率的に想起し、冗長な履歴の再処理を回避できます。
+### クイック実行
 
-### 🎓 基本的な使い方
-
-```python
-from main import SimpleMemSystem
-
-# 🚀 システムを初期化
-system = SimpleMemSystem(clear_db=True)
-
-# 💬 対話を追加（ステージ 1：意味的構造化圧縮）
-system.add_dialogue("Alice", "Bob, let's meet at Starbucks tomorrow at 2pm", "2025-11-15T14:30:00")
-system.add_dialogue("Bob", "Sure, I'll bring the market analysis report", "2025-11-15T14:31:00")
-
-# ✅ 原子エンコーディングを完了
-system.finalize()
-
-# 🔎 意図認識検索でクエリ（ステージ 3：意図認識検索計画）
-answer = system.ask("When and where will Alice and Bob meet?")
-print(answer)
-# 出力: "16 November 2025 at 2:00 PM at Starbucks"
+```bash
+# リポジトリルートから
+docker compose up -d
 ```
 
----
+- **Web UI:** http://localhost:8000/
+- **REST API:** http://localhost:8000/api/
+- **MCP (SSE):** http://localhost:8000/mcp/sse?token=&lt;TOKEN&gt;
 
-### 🚄 応用：並列処理
+データはホスト上の `./data` に保存されます（自動的に作成されます）。
 
-大規模な対話処理には、並列モードを有効にしてください：
+### カスタム設定
 
-```python
-system = SimpleMemSystem(
-    clear_db=True,
-    enable_parallel_processing=True,  # ⚡ 並列メモリ構築
-    max_parallel_workers=8,
-    enable_parallel_retrieval=True,   # 🔍 並列クエリ実行
-    max_retrieval_workers=4
-)
+1. 環境テンプレートをコピーして編集します：
+   ```bash
+   cp .env.example .env
+   # .env を編集: JWT_SECRET_KEY、ENCRYPTION_KEY、LLM_PROVIDER、モデル URL などを設定
+   ```
+2. env ファイルを指定して実行します：
+   ```bash
+   docker compose --env-file .env up -d
+   ```
+
+### ホスト上の Ollama を使用する
+
+`LLM_PROVIDER=ollama` で Ollama がマシン上（Docker 内ではなく）で動作している場合、`.env` に以下を設定します：
+
+```bash
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 ```
 
-> **💡 ヒント**：並列処理によりバッチ操作のレイテンシーが大幅に削減されます！
+Linux では、`host.docker.internal` は Compose ファイルを通じて自動的に有効になります。
+
+### 便利なコマンド
+
+```bash
+docker compose logs -f simplemem   # ログを追跡
+docker compose down                 # コンテナを停止・削除
+```
+
+> 📖 MCP サーバーのセルフホスティング（Docker またはベアメタル）については [MCP ドキュメント](../../MCP/README.md) を参照してください。
 
 ---
 
-## ❓ よくある問題とトラブルシューティング
+## 🔌 MCP サーバー *(テキストメモリ)*
 
-SimpleMem の初回セットアップや実行で問題が発生した場合、以下の一般的なケースを確認してください：
+SimpleMem は Model Context Protocol (MCP) を通じた **クラウドホスト型メモリサービス** として利用可能で、Claude Desktop、Cursor、その他の MCP 互換クライアントなどの AI アシスタントとのシームレスな統合を可能にします。
 
-### 1️⃣ API キーが検出されない
-- `config.py` で API キーが正しく設定されていることを確認
-- OpenAI 互換プロバイダー（Qwen、Azure など）では、`OPENAI_BASE_URL` が正しく構成されていることを確認
-- キー更新後に Python 環境を再起動
-
-### 2️⃣ Python バージョンの不一致
-- SimpleMem には **Python 3.10** が必要です
-- バージョンを確認：
-  ```bash
-  python --version
-  ```
-
----
-
----
-
-<div align="center">
-
-# 🧠 Omni-SimpleMem: Multimodal Memory
-
-**NEW** — SimpleMem now handles text, image, audio & video.
-
-</div>
-
-<table>
-<tr>
-<td align="center" width="140">📈 <b>+411%</b><br><sub>LoCoMo F1</sub></td>
-<td align="center" width="140">📈 <b>+214%</b><br><sub>Mem-Gallery F1</sub></td>
-<td align="center" width="140">⚡ <b>5.81 q/s</b><br><sub>3.5x faster</sub></td>
-<td align="center" width="140">🧠 <b>4 modalities</b><br><sub>Text · Image · Audio · Video</sub></td>
-</tr>
-</table>
-
-> 📖 Full documentation: [**Omni-SimpleMem →**](../../OmniSimpleMem/)
-
----
-
-## 🔌 MCPサーバー *(text memory)*
-
-SimpleMem は**クラウドホスト型メモリサービス**として、Model Context Protocol（MCP）を通じて提供され、Claude Desktop、Cursor などの AI アシスタントとのシームレスな統合を実現します。
-
-**🌐 クラウドサービス**：[mcp.simplemem.cloud](https://mcp.simplemem.cloud)
+**🌐 クラウドサービス**: [mcp.simplemem.cloud](https://mcp.simplemem.cloud) — または [Docker](#-docker-で実行) を使用してローカルで MCP サーバーをセルフホスティング。
 
 ### 主な機能
 
 | 機能 | 説明 |
 |---------|-------------|
-| **Streamable HTTP** | MCP 2025-03-26 プロトコル（JSON-RPC 2.0） |
+| **Streamable HTTP** | JSON-RPC 2.0 を使用した MCP 2025-03-26 プロトコル |
 | **マルチテナント分離** | トークン認証によるユーザーごとのデータテーブル |
 | **ハイブリッド検索** | 意味検索 + キーワードマッチング + メタデータフィルタリング |
-| **本番環境最適化** | OpenRouter 統合による高速レスポンス |
+| **プロダクション最適化** | OpenRouter 統合による高速レスポンスタイム |
 
-### クイック構成
+### クイック設定
 
 ```json
 {
@@ -487,60 +440,96 @@ SimpleMem は**クラウドホスト型メモリサービス**として、Model 
 }
 ```
 
-> 📖 詳細なセットアップ手順とセルフホスティングガイドは [MCP ドキュメント](../../MCP/README.md) をご覧ください
+> 📖 詳細なセットアップ手順とセルフホスティングガイドについては [MCP ドキュメント](../../MCP/README.md) を参照してください
 
 ---
+
+## 📊 論文結果の再現
+
+論文の LoCoMo / MemBench / Mem-Gallery の数値を再現します。各柱はそれ自身のディレクトリにベンチマークランナーを持っています。まずベンチマーク追加依存関係をインストールしてください：`pip install -e ".[benchmark]"`。
+
+### 📝 SimpleMem（テキスト）— LoCoMo
+
+リポジトリルートから実行：
+
+```bash
+python test_locomo10.py                       # 完全な LoCoMo ベンチマーク
+python test_locomo10.py --num-samples 5       # クイックサブセット
+python test_locomo10.py --result-file my_results.json
+```
+
+### 🧬 EvolveMem — 自己進化 + LoCoMo / MemBench
+
+`EvolveMem/` ディレクトリから実行（[`EvolveMem/README.md`](../../EvolveMem/README.md) を参照）：
+
+```bash
+cd EvolveMem
+python run_evolution.py --data data/locomo10.json --max-rounds 7
+python run_benchmark.py locomo --sample 0 --initial weak --max-rounds 3
+python run_benchmark.py membench --agent FirstAgent --max-rounds 3
+```
+
+### 🧠 Omni-SimpleMem — LoCoMo / Mem-Gallery
+
+`OmniSimpleMem/` ディレクトリから実行（[`OmniSimpleMem/README.md`](../../OmniSimpleMem/README.md) を参照）：
+
+```bash
+cd OmniSimpleMem
+python benchmarks/locomo/run_locomo.py --data-path /path/to/locomo10.json --model gpt-4o
+```
 
 ---
 
 ## 🗺️ ロードマップ
 
-- [ ] Omni cross-session memory
-- [ ] Omni MCP server
-- [ ] Omni Docker support
-- [ ] Omni PyPI package
-- [ ] Streaming ingestion
-- [ ] Multi-agent memory sharing
+統合チャネル別の現在の機能：
 
----
+| 機能 | Python (`pip install`) | MCP サーバー（Claude Desktop、Cursor など） |
+|:--|:--:|:--:|
+| テキストメモリ | ✅ | ✅ |
+| マルチモーダル（画像 / 音声 / 動画） | ✅ | ⬜ 計画中 |
+| `optimize()` 自己進化型検索 | ✅ | ⬜ 計画中 |
 
-## 📊 評価
+ギャップを埋めるための計画的な作業（MCP サーバーはスタンドアロンのマルチテナントテキストサービスです。これらは実際の機能であり、ドキュメントの修正ではありません）：
 
-### 🧪 ベンチマークテストの実行
+- [ ] **MCP 経由のマルチモーダル。** `memory_add_image` / `memory_add_audio` / `memory_add_video` ツールを追加。ファイルアップロードパス（base64 または URL、MCP はローカルファイルパスを渡せないため）、Omni-SimpleMem ストレージバックエンドのマルチテナント対応、サーバー側のビジョン/音声モデルアクセスが必要。
+- [ ] **MCP 経由の EvolveMem。** `optimize()` を MCP ツールとして公開。マルチモーダルよりも実現可能（テキスト入力、JSON 設定出力、ファイル転送なし）ですが、MCP リトリーバーは現在、EvolveMem が進化させる約 10 次元のうち `semantic_top_k` / `keyword_top_k` のみをサポートしています。残りのノブ（structured top_k、フュージョンモード/重み、エンティティスワップ、クエリ分解、回答検証）をサポートするための MCP リトリーバーの拡張、テナントの保存メモリに対して進化ループを実行するアダプター、テナントごとの設定永続化、非同期実行（ループは LLM 負荷が高く、同期リクエストはタイムアウトする）が必要。
+- [ ] **Docker** は MCP サーバーがサポートした時点で両方を自動的に継承（マルチモーダル依存関係をイメージに追加し、Omni ストレージボリュームを追加）。
 
-```bash
-# 🎯 完全な LoCoMo ベンチマーク
-python test_locomo10.py
-
-# 📉 サブセット評価（5サンプル）
-python test_locomo10.py --num-samples 5
-
-# 💾 カスタム出力ファイル
-python test_locomo10.py --result-file my_results.json
-```
-
----
-
-### 🔬 論文結果の再現
-
-`config.py` の正確な設定を使用してください：
-- **🚀 高性能**：GPT-4.1-mini、Qwen3-Plus
-- **⚙️ 効率的**：Qwen2.5-1.5B、Qwen2.5-3B
-- **🔍 埋め込み**：Qwen3-Embedding-0.6B（1024次元）
+完全なマルチモーダルと自己進化型検索には、今すぐ Python API を使用してください（[クイックスタート](#-クイックスタート)を参照）。
 
 ---
 
 ## 📝 引用
 
-研究で SimpleMem を使用される場合は、以下を引用してください：
+SimpleMem を研究に使用する場合は、以下を引用してください：
 
 ```bibtex
-@article{simplemem2025,
+@article{simplemem2026,
   title={SimpleMem: Efficient Lifelong Memory for LLM Agents},
   author={Liu, Jiaqi and Su, Yaofeng and Xia, Peng and Zhou, Yiyang and Han, Siwei and  Zheng, Zeyu and Xie, Cihang and Ding, Mingyu and Yao, Huaxiu},
   journal={arXiv preprint arXiv:2601.02553},
-  year={2025},
-  url={https://github.com/aiming-lab/SimpleMem}
+  year={2026},
+  url={https://arxiv.org/abs/2601.02553}
+}
+```
+
+```bibtex
+@article{evolvemem2026,
+  title={EvolveMem: Self-Evolving Memory Architecture via AutoResearch for LLM Agents},
+  author={Liu, Jiaqi and Ye, Xinyu and Xia, Peng and Zheng, Zeyu and Xie, Cihang and Ding, Mingyu and Yao, Huaxiu},
+  journal={arXiv preprint arXiv:2605.13941},
+  year={2026},
+  url={https://arxiv.org/abs/2605.13941}
+}
+```
+
+```bibtex
+@article{omnisimplemem2026,
+  title   = {Omni-SimpleMem: Autoresearch-Guided Discovery of Lifelong Multimodal Agent Memory},
+  author  = {Liu, Jiaqi and Ling, Zipeng and Qiu, Shi and Liu, Yanqing and Han, Siwei and Xia, Peng and Tu, Haoqin and Zheng, Zeyu and Xie, Cihang and Fleming, Charles and Ding, Mingyu and Yao, Huaxiu},
+  journal = {arXiv preprint arXiv:2604.01007},
+  year    = {2026},
 }
 ```
 
@@ -548,14 +537,14 @@ python test_locomo10.py --result-file my_results.json
 
 ## 📄 ライセンス
 
-このプロジェクトは **MIT ライセンス** の下で公開されています。詳細は [LICENSE](../../LICENSE) ファイルをご覧ください。
+このプロジェクトは **MIT ライセンス** の下でライセンスされています — 詳細は [LICENSE](../../LICENSE) ファイルを参照してください。
 
 ---
 
 ## 🙏 謝辞
 
-以下のプロジェクトとチームに感謝いたします：
+以下のプロジェクトとチームに感謝します：
 
-- 🔍 **埋め込みモデル**：[Qwen3-Embedding](https://github.com/QwenLM/Qwen) - 最先端の検索性能
-- 🗄️ **ベクトルデータベース**：[LanceDB](https://lancedb.com/) - 高性能カラムナーストレージ
-- 📊 **ベンチマーク**：[LoCoMo](https://github.com/snap-research/locomo) - 長コンテキストメモリ評価フレームワーク
+- 🔍 **埋め込みモデル**: [Qwen3-Embedding](https://github.com/QwenLM/Qwen) - 最先端の検索性能
+- 🗄️ **ベクターデータベース**: [LanceDB](https://lancedb.com/) - 高性能なカラム型ストレージ
+- 📊 **ベンチマーク**: [LoCoMo](https://github.com/snap-research/locomo) - 長期コンテキストメモリ評価フレームワーク

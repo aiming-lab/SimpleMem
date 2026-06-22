@@ -1,0 +1,28 @@
+# SimpleMem MCP Server Dependencies
+
+# MCP SDK
+mcp>=1.0.0
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# HTTP Client
+httpx>=0.26.0
+
+# Database
+lancedb>=0.4.0
+pyarrow>=14.0.0
+pandas>=2.0.0
+
+# Authentication
+PyJWT>=2.8.0
+cryptography>=41.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+
+# Development (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.23.0

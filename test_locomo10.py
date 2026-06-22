@@ -20,7 +20,7 @@ from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import pytorch_cos_sim
 
 from main import SimpleMemSystem
-from models.memory_entry import Dialogue
+from simplemem.core.models.memory_entry import Dialogue
 
 # Download required NLTK data
 try:

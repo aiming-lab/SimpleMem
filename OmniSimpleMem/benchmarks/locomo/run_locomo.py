@@ -44,7 +44,8 @@ from typing import Any, Dict, List, Optional
 # ---- Path setup ----
 _THIS_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _THIS_DIR.parent.parent
-sys.path.insert(0, str(_PROJECT_ROOT))
+_REPO_ROOT = _PROJECT_ROOT.parent  # simplemem-refactor root
+sys.path.insert(0, str(_REPO_ROOT))
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -414,8 +415,8 @@ def main():
     logger.info("Loaded %d conversations from %s", len(samples), data_path)
 
     # ---- Configure OmniMem ----
-    from omni_memory.core.config import OmniMemoryConfig
-    from omni_memory.orchestrator import OmniMemoryOrchestrator
+    from simplemem.multimodal.core.config import OmniMemoryConfig
+    from simplemem.multimodal.orchestrator import OmniMemoryOrchestrator
 
     config = OmniMemoryConfig()
     # API credentials
