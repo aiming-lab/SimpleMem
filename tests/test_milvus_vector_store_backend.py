@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pymilvus")
+from pymilvus import DataType, Function, FunctionType, MilvusClient
 
 from simplemem.core.database import (
     MilvusVectorStoreBackend,
@@ -288,6 +289,66 @@ def test_milvus_lite_validates_reused_collection_dimension(tmp_path, records):
 
     with pytest.raises(ValueError, match="vector dimension 3; expected 4"):
         MilvusVectorStoreBackend("memory_entries", 4, uri=uri)
+
+
+def test_reused_collection_forwards_configured_consistency_level(
+    tmp_path, records, monkeypatch
+):
+    uri = str(tmp_path / "consistency.db")
+    initial = MilvusVectorStoreBackend(
+        "memory_entries",
+        3,
+        uri=uri,
+        consistency_level="Bounded",
+    )
+    initial.insert(records)
+    initial.close()
+
+    class RecordingMilvusClient(MilvusClient):
+        def __init__(self, *args, **kwargs):
+            self.read_calls = []
+            super().__init__(*args, **kwargs)
+
+        def search(self, *args, **kwargs):
+            self.read_calls.append(("search", kwargs.get("consistency_level")))
+            return super().search(*args, **kwargs)
+
+        def query(self, *args, **kwargs):
+            self.read_calls.append(("query", kwargs.get("consistency_level")))
+            return super().query(*args, **kwargs)
+
+        def query_iterator(self, *args, **kwargs):
+            self.read_calls.append(("query_iterator", kwargs.get("consistency_level")))
+            return super().query_iterator(*args, **kwargs)
+
+    monkeypatch.setattr(
+        MilvusVectorStoreBackend,
+        "_load_pymilvus",
+        staticmethod(lambda: (RecordingMilvusClient, DataType, Function, FunctionType)),
+    )
+    backend = MilvusVectorStoreBackend(
+        "memory_entries",
+        3,
+        uri=uri,
+        consistency_level="Session",
+    )
+    try:
+        assert backend.count() == len(records)
+        backend.semantic_search([1.0, 0.0, 0.0], top_k=1)
+        backend.keyword_search(["Apollo"], top_k=1)
+        backend.structured_search(persons=["Alice"], top_k=1)
+        backend.get_all()
+
+        methods = [method for method, _ in backend.client.read_calls]
+        assert methods.count("search") == 2
+        assert methods.count("query") >= 4
+        assert methods.count("query_iterator") == 1
+        assert all(
+            consistency_level == "Session"
+            for _, consistency_level in backend.client.read_calls
+        )
+    finally:
+        backend.close()
 
 
 def test_milvus_lite_3_0_cosine_workaround_is_narrow():

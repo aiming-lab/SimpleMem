@@ -387,6 +387,7 @@ class MilvusVectorStoreBackend:
             limit=top_k,
             output_fields=self._OUTPUT_FIELDS,
             search_params={"metric_type": "COSINE", "params": {}},
+            consistency_level=self.consistency_level,
         )[0]
         results = [
             self._hit_to_result(
@@ -425,6 +426,7 @@ class MilvusVectorStoreBackend:
             limit=top_k,
             output_fields=self._OUTPUT_FIELDS,
             search_params={"metric_type": "BM25", "params": {}},
+            consistency_level=self.consistency_level,
         )[0]
         results = [
             self._hit_to_result(
@@ -492,6 +494,7 @@ class MilvusVectorStoreBackend:
                 filter=expression,
                 output_fields=self._OUTPUT_FIELDS,
                 limit=top_k,
+                consistency_level=self.consistency_level,
             )
         else:
             rows = self._query_all(filter_expression=expression)
@@ -559,6 +562,7 @@ class MilvusVectorStoreBackend:
         rows = self.client.query(
             collection_name=self.collection_name,
             output_fields=["count(*)"],
+            consistency_level=self.consistency_level,
         )
         return int(rows[0]["count(*)"]) if rows else 0
 
@@ -571,6 +575,7 @@ class MilvusVectorStoreBackend:
             filter=filter_expression,
             output_fields=self._OUTPUT_FIELDS,
             batch_size=1000,
+            consistency_level=self.consistency_level,
         )
         rows_by_id = {}
         try:
