@@ -344,6 +344,7 @@ pip install -r requirements.txt
 
 # — OR — install as an editable package
 pip install -e .                  # default: text + multimodal + evolver
+pip install -e ".[milvus]"        # + optional Milvus vector store backend
 pip install -e ".[server]"        # + MCP / HTTP server (mcp, fastapi, ...)
 pip install -e ".[all]"           # everything, including dev tools
 
@@ -375,6 +376,51 @@ EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
 ```
 
 > `deepseek-ai/deepseek-v4-pro` is a reasoning model, so leave enough output budget; if responses come back empty, raise the token limit (>= 512). Any other OpenAI-compatible chat model on Atlas Cloud (e.g. `Qwen/Qwen3-Next-80B-A3B-Instruct`, `zai-org/glm-5`, `moonshotai/kimi-k2.6`) works the same way.
+
+### Optional Milvus vector store
+
+LanceDB remains the default vector store. Install the `milvus` extra and inject
+`MilvusVectorStoreBackend` when you want the same semantic, BM25 keyword, and
+structured retrieval paths backed by Milvus:
+
+```bash
+pip install -e ".[milvus]"
+```
+
+```python
+from simplemem.core.database import MilvusVectorStoreBackend, VectorStore
+from simplemem.core.settings import settings
+
+store = VectorStore(
+    backend_factory=lambda dimension: MilvusVectorStoreBackend(
+        collection_name=settings.MILVUS_COLLECTION_NAME,
+        vector_dimension=dimension,
+        uri=settings.MILVUS_URI,
+        token=settings.MILVUS_TOKEN,
+        db_name=settings.MILVUS_DB_NAME,
+        consistency_level=settings.MILVUS_CONSISTENCY_LEVEL,
+    )
+)
+```
+
+The default `MILVUS_URI=./milvus.db` starts Milvus Lite with a local database
+file. The same backend connects to Milvus Server or Zilliz Cloud without code
+changes:
+
+```bash
+# Milvus Server
+export MILVUS_URI=http://localhost:19530
+
+# Zilliz Cloud
+export MILVUS_URI=https://YOUR-ENDPOINT.api.gcp-us-west1.zillizcloud.com
+export MILVUS_TOKEN=YOUR_API_KEY
+```
+
+Set `MILVUS_DB_NAME`, `MILVUS_COLLECTION_NAME`, and
+`MILVUS_CONSISTENCY_LEVEL` when the deployment requires non-default database,
+collection, or consistency settings. Milvus Lite 3.x uses a storage format that
+is not compatible with databases created by Milvus Lite 2.x; create a new local
+database or migrate the old data before upgrading.
 
 ---
 
@@ -580,5 +626,5 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 We would like to thank the following projects and teams:
 
 - 🔍 **Embedding Model**: [Qwen3-Embedding](https://github.com/QwenLM/Qwen) - State-of-the-art retrieval performance
-- 🗄️ **Vector Database**: [LanceDB](https://lancedb.com/) - High-performance columnar storage
+- 🗄️ **Vector Databases**: [LanceDB](https://lancedb.com/) by default, with optional [Milvus](https://milvus.io/) support
 - 📊 **Benchmark**: [LoCoMo](https://github.com/snap-research/locomo) - Long-context memory evaluation framework

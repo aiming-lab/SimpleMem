@@ -87,6 +87,13 @@ LANCEDB_PATH = "./lancedb_data"
 # Memory table name
 MEMORY_TABLE_NAME = "memory_entries"
 
+# Optional Milvus backend settings. LanceDB remains the default backend.
+MILVUS_URI = "./milvus.db"
+MILVUS_TOKEN = ""
+MILVUS_DB_NAME = ""
+MILVUS_COLLECTION_NAME = "memory_entries"
+MILVUS_CONSISTENCY_LEVEL = "Session"
+
 
 
 # ============================================================================
