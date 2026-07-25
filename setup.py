@@ -51,6 +51,9 @@ INSTALL_REQUIRES = [
 
 
 EXTRAS = {
+    "milvus": [
+        "pymilvus[milvus-lite]>=3.0.0",
+    ],
     # MCP / HTTP server integration — bounds + members from MCP/requirements.txt
     # (authoritative for the MCP/server/ subproject). Members already in defaults
     # (lancedb, pyarrow, httpx, pydantic) intentionally omitted here — pip will pick

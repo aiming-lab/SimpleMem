@@ -89,6 +89,15 @@ LANCEDB_PATH = "./lancedb_data"
 # Memory table name
 MEMORY_TABLE_NAME = "memory_entries"
 
+# Optional Milvus backend settings. LanceDB remains the default backend.
+# Use a local file for Milvus Lite, http://localhost:19530 for Milvus Server,
+# or a Zilliz Cloud public endpoint with MILVUS_TOKEN.
+MILVUS_URI = "./milvus.db"
+MILVUS_TOKEN = ""
+MILVUS_DB_NAME = ""
+MILVUS_COLLECTION_NAME = "memory_entries"
+MILVUS_CONSISTENCY_LEVEL = "Session"
+
 
 
 # ============================================================================
