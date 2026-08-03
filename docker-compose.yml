@@ -18,6 +18,7 @@ services:
       - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      - ORCAROUTER_BASE_URL=${ORCAROUTER_BASE_URL:-https://api.orcarouter.ai/v1}
       - LLM_MODEL=${LLM_MODEL:-openai/gpt-4.1-mini}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-qwen3-embedding:4b}
       - EMBEDDING_DIMENSION=${EMBEDDING_DIMENSION:-2560}

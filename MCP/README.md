@@ -13,6 +13,7 @@ SimpleMem MCP Server is a cloud-hosted long-term memory service for LLM agents, 
 - **Intelligent Planning**: Automatic query decomposition and reflection for complex queries
 - **Multi-tenant Isolation**: Per-user data tables with token authentication
 - **OpenRouter Integration**: Powered by OpenRouter's LLM and Embedding services
+- **OrcaRouter Integration**: OrcaRouter is supported as a first-class provider (an OpenAI-compatible gateway), alongside Requesty and Ollama, via the `LLM_PROVIDER` setting
 - **Production Optimized**: Faster response times compared to the academic reference implementation
 
 ## Architecture
@@ -249,6 +250,17 @@ User Question: "When am I meeting Bob?"
 ```
 
 ## Configuration Options
+
+The LLM/embedding backend is selected with the `LLM_PROVIDER` environment variable (default `openrouter`):
+
+| `LLM_PROVIDER` | Base URL env var | Default |
+|----------------|------------------|---------|
+| `openrouter` | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` |
+| `requesty` | `REQUESTY_BASE_URL` | `https://router.requesty.ai/v1` |
+| `ollama` | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` |
+| `orcarouter` | `ORCAROUTER_BASE_URL` | `https://api.orcarouter.ai/v1` |
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible gateway that provides unified access to many LLM vendors (OpenAI, Anthropic, Google, DeepSeek, Moonshot, and more) through a single endpoint. It also runs gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes. Keys start with `sk-orca-` and can be created at https://www.orcarouter.ai.
 
 | Option | Default | Description |
 |--------|---------|-------------|

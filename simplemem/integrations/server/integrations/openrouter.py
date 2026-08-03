@@ -110,6 +110,8 @@ class OpenRouterClient:
                         break
                     try:
                         data = json.loads(data_str)
+                        if not data.get("choices"):
+                            continue
                         delta = data["choices"][0].get("delta", {})
                         if "content" in delta:
                             content_parts.append(delta["content"])
