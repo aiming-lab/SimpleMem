@@ -66,7 +66,7 @@ class Settings:
     # LLM Provider Configuration
     llm_provider: str = field(default_factory=lambda: os.getenv(
         "LLM_PROVIDER",
-        "openrouter"  # Options: "openrouter", "requesty", "ollama"
+        "openrouter"  # Options: "openrouter", "requesty", "ollama", "orcarouter"
     ))
 
     # OpenRouter Configuration (used when llm_provider is "openrouter")
@@ -85,6 +85,12 @@ class Settings:
     ollama_base_url: str = field(default_factory=lambda: os.getenv(
         "OLLAMA_BASE_URL",
         "http://localhost:11434/v1"
+    ))
+
+    # OrcaRouter Configuration (used when llm_provider is "orcarouter")
+    orcarouter_base_url: str = field(default_factory=lambda: os.getenv(
+        "ORCAROUTER_BASE_URL",
+        "https://api.orcarouter.ai/v1"
     ))
 
     # Common LLM Configuration

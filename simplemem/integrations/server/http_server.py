@@ -37,6 +37,7 @@ from .database.vector_store import MultiTenantVectorStore
 from .integrations.openrouter import OpenRouterClient, OpenRouterClientManager
 from .integrations.requesty import RequestyClient, RequestyClientManager
 from .integrations.ollama import OllamaClient, OllamaClientManager
+from .integrations.orcarouter import OrcaRouterClient, OrcaRouterClientManager
 from .mcp_handler import MCPHandler
 
 import sys
@@ -113,6 +114,12 @@ if settings.llm_provider == "ollama":
 elif settings.llm_provider == "requesty":
     client_manager = RequestyClientManager(
         base_url=settings.requesty_base_url,
+        llm_model=settings.llm_model,
+        embedding_model=settings.embedding_model,
+    )
+elif settings.llm_provider == "orcarouter":
+    client_manager = OrcaRouterClientManager(
+        base_url=settings.orcarouter_base_url,
         llm_model=settings.llm_model,
         embedding_model=settings.embedding_model,
     )
@@ -345,6 +352,20 @@ async def register(request: RegisterRequest):
                 return RegisterResponse(
                     success=False,
                     error=f"Invalid Requesty API key: {error}",
+                )
+        elif settings.llm_provider == "orcarouter":
+            # For OrcaRouter, validate the API key
+            client = OrcaRouterClient(
+                api_key=api_key,
+                base_url=settings.orcarouter_base_url,
+            )
+            is_valid, error = await client.verify_api_key()
+            await client.close()
+
+            if not is_valid:
+                return RegisterResponse(
+                    success=False,
+                    error=f"Invalid OrcaRouter API key: {error}",
                 )
         else:
             # For OpenRouter, validate the API key

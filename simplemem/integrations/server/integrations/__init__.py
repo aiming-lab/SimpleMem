@@ -3,6 +3,7 @@
 from .openrouter import OpenRouterClient, OpenRouterClientManager
 from .requesty import RequestyClient, RequestyClientManager
 from .ollama import OllamaClient, OllamaClientManager
+from .orcarouter import OrcaRouterClient, OrcaRouterClientManager
 
 __all__ = [
     "OpenRouterClient",
@@ -11,4 +12,6 @@ __all__ = [
     "RequestyClientManager",
     "OllamaClient",
     "OllamaClientManager",
+    "OrcaRouterClient",
+    "OrcaRouterClientManager",
 ]
