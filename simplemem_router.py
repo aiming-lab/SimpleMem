@@ -317,7 +317,18 @@ class AutoMemory:
     def add_dialogue(
         self, speaker: str, content: str, timestamp: Optional[str] = None
     ) -> Any:
-        """Add a dialogue turn.  *Selects text backend on first call.*"""
+        """Add a single dialogue turn to the text-mode memory system.
+
+        Automatically selects the text backend on the first call.
+
+        Args:
+            speaker: Name of the speaker.
+            content: Text content of the dialogue turn.
+            timestamp: Optional ISO 8601 timestamp for the dialogue turn.
+
+        Returns:
+            The result returned by the underlying text backend.
+        """
         self._require("text", "add_dialogue")
         return self._backend.add_dialogue(speaker, content, timestamp)
 
