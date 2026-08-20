@@ -214,7 +214,31 @@ def create_system(
     max_retrieval_workers: Optional[int] = None
 ) -> SimpleMemSystem:
     """
-    Create SimpleMem system instance (uses config.py defaults when None)
+    Create a SimpleMem system instance using config.py defaults.
+
+    Convenience wrapper around :class:`SimpleMemSystem` that reads API keys,
+    model names, and feature flags from ``config.py``; only the parameters
+    listed below need to be supplied when overriding those defaults.
+
+    Args:
+        clear_db: Whether to clear the existing memory database on startup.
+        enable_planning: Enable multi-query planning for retrieval
+            (``None`` uses the config default).
+        enable_reflection: Enable reflection-based additional retrieval rounds
+            (``None`` uses the config default).
+        max_reflection_rounds: Maximum number of reflection rounds
+            (``None`` uses the config default).
+        enable_parallel_processing: Enable parallel processing for memory
+            building (``None`` uses the config default).
+        max_parallel_workers: Maximum number of parallel workers for memory
+            building (``None`` uses the config default).
+        enable_parallel_retrieval: Enable parallel processing for retrieval
+            queries (``None`` uses the config default).
+        max_retrieval_workers: Maximum number of parallel workers for
+            retrieval (``None`` uses the config default).
+
+    Returns:
+        A fully initialised :class:`SimpleMemSystem` instance.
     """
     return SimpleMemSystem(
         clear_db=clear_db,
