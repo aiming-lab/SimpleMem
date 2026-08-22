@@ -112,7 +112,11 @@ def register(
     overwrite: bool = False,
 ) -> None:
     """
-    Register a memory backend.
+    Register a memory backend under a short *mode* name.
+
+    After registration the backend is available via :func:`create` and
+    :func:`list_modes`.  Built-in modes (``"text"``, ``"omni"``) are
+    registered automatically at import time.
 
     Args:
         mode:          Short name used in ``create(mode=...)``.
@@ -125,6 +129,30 @@ def register(
         init:          Custom constructor ``fn(cls, **kwargs) -> instance``.
                        If *None*, the default ``cls(**kwargs)`` is used.
         overwrite:     Allow replacing an existing registration.
+
+    Raises:
+        ValueError: If *mode* is already registered and *overwrite* is
+            ``False``.
+
+    Examples::
+
+        # Register a custom backend
+        register(
+            mode="custom",
+            module_path="mypackage.memory",
+            class_name="MyMemorySystem",
+            description="My custom memory backend",
+        )
+        mem = create(mode="custom")
+
+        # Replace an existing registration
+        register(
+            mode="custom",
+            module_path="mypackage.memory_v2",
+            class_name="MyMemorySystemV2",
+            description="My improved backend",
+            overwrite=True,
+        )
     """
     if mode in _registry and not overwrite:
         raise ValueError(
