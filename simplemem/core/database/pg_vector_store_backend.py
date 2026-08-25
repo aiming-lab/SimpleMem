@@ -6,16 +6,48 @@ Three retrieval layers — all parameterized, no SQL injection surface:
   Keyword:     PostgreSQL tsvector / plainto_tsquery (generated column + GIN index)
   Structured:  standard SQL WHERE with %s placeholders
 
-IRIS + pgwire compatibility
----------------------------
-IRIS with iris-pgwire satisfies this interface directly — point PG_DSN at the
-pgwire endpoint.  No IRIS-specific code is required.
-
-Installation
-------------
+Client installation
+-------------------
   pip install "psycopg[binary]" pgvector
   # or:
   pip install simplemem[pgvector]
+
+Using PostgreSQL
+----------------
+Point PG_DSN at any PostgreSQL ≥ 15 instance with the pgvector extension:
+
+  CREATE EXTENSION IF NOT EXISTS vector;   -- one-time setup
+
+  STORAGE_BACKEND = "pgvector"
+  PG_DSN = "postgresql://user:pass@localhost:5432/mydb"
+
+Using InterSystems IRIS
+-----------------------
+IRIS does not natively speak the PostgreSQL wire protocol, but
+`iris-pgwire` (https://github.com/intersystems-community/iris-pgwire)
+adds a translation layer so any psycopg client — including this backend —
+connects to IRIS without IRIS-specific drivers.
+
+Server-side setup (one time per IRIS instance):
+
+  1. Install iris-pgwire on the machine running IRIS:
+       pip install iris-pgwire
+       # or via Docker: docker compose up -d  (see iris-pgwire README)
+
+  2. Start the pgwire server (translates Postgres wire protocol → IRIS SQL):
+       python -m iris_pgwire.server  # default port 5432
+
+  3. Point PG_DSN at the pgwire endpoint:
+       PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
+
+iris-pgwire translates pgvector DDL and operators transparently:
+  - CREATE INDEX USING hnsw (vec vector_cosine_ops)  →  IRIS HNSW syntax
+  - vec <-> %s::vector                               →  VECTOR_COSINE(vec, TO_VECTOR(%s, DOUBLE))
+  - tsvector / plainto_tsquery                       →  IRIS full-text SQL equivalents
+  - Generated columns (tsv tsvector GENERATED ALWAYS AS …) are emulated
+
+No code changes are needed to switch between PostgreSQL and IRIS — only
+the DSN changes.
 """
 from __future__ import annotations
 
