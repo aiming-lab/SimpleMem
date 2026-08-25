@@ -1,185 +1,114 @@
-"""
-Vector Store - Multi-View Indexing (Section 3.1)
+"""Provider-neutral facade for SimpleMem's three retrieval paths."""
 
-Implements three-layer indexing I(m_k):
-- Semantic Layer: s_k = E_dense(m_k) - Dense vector similarity
-- Lexical Layer: l_k = E_sparse(m_k) - BM25 keyword matching (Tantivy FTS)
-- Symbolic Layer: r_k = E_sym(m_k) - Metadata filtering (SQL)
-"""
-from typing import List, Optional, Dict, Any
-import lancedb
-import pyarrow as pa
+from typing import Any, Callable, Dict, List, Optional
+
+from simplemem.core.database.vector_store_backend import (
+    LanceDBVectorStoreBackend,
+    VectorStoreBackend,
+    VectorStoreRecord,
+    VectorStoreSearchResult,
+)
 from simplemem.core.models.memory_entry import MemoryEntry
-from simplemem.core.utils.embedding import EmbeddingModel
 from simplemem.core.settings import settings as config
-import os
+from simplemem.core.utils.embedding import EmbeddingModel
+
+
+BackendFactory = Callable[[int], VectorStoreBackend]
 
 
 class VectorStore:
-    """
-    Multi-View Indexing - Storage and retrieval for memory units (Section 3.1)
-
-    Three-layer indexing I(m_k):
-    1. Semantic Layer: Dense embeddings for conceptual similarity
-    2. Lexical Layer: Tantivy FTS for exact keyword matching
-    3. Symbolic Layer: SQL-based metadata filtering
-    """
+    """Coordinate embeddings with a pluggable multi-view storage backend."""
 
     def __init__(
         self,
         db_path: str = None,
         embedding_model: EmbeddingModel = None,
         table_name: str = None,
-        storage_options: Optional[Dict[str, Any]] = None
+        storage_options: Optional[Dict[str, Any]] = None,
+        backend_factory: Optional[BackendFactory] = None,
     ):
         self.db_path = db_path or config.LANCEDB_PATH
         self.embedding_model = embedding_model or EmbeddingModel()
         self.table_name = table_name or config.MEMORY_TABLE_NAME
-        self.table = None
-        self._fts_initialized = False
+        self.storage_options = storage_options
 
-        # Detect if using cloud storage (GCS, S3, Azure)
-        self._is_cloud_storage = self.db_path.startswith(("gs://", "s3://", "az://"))
-
-        # Connect to database
-        if self._is_cloud_storage:
-            self.db = lancedb.connect(self.db_path, storage_options=storage_options)
+        if backend_factory is None:
+            self.backend = LanceDBVectorStoreBackend(
+                db_path=self.db_path,
+                table_name=self.table_name,
+                vector_dimension=self.embedding_model.dimension,
+                storage_options=self.storage_options,
+            )
         else:
-            os.makedirs(self.db_path, exist_ok=True)
-            self.db = lancedb.connect(self.db_path)
+            self.backend = backend_factory(self.embedding_model.dimension)
 
-        self._init_table()
+    @property
+    def db(self) -> Any:
+        """Expose the default backend's database handle for compatibility."""
+        return getattr(self.backend, "db", None)
 
-    def _init_table(self):
-        """Initialize table schema and FTS index."""
-        schema = pa.schema([
-            pa.field("entry_id", pa.string()),
-            pa.field("lossless_restatement", pa.string()),
-            pa.field("keywords", pa.list_(pa.string())),
-            pa.field("timestamp", pa.string()),
-            pa.field("location", pa.string()),
-            pa.field("persons", pa.list_(pa.string())),
-            pa.field("entities", pa.list_(pa.string())),
-            pa.field("topic", pa.string()),
-            pa.field("vector", pa.list_(pa.float32(), self.embedding_model.dimension))
-        ])
+    @property
+    def table(self) -> Any:
+        """Expose the default backend's table handle for compatibility."""
+        return getattr(self.backend, "table", None)
 
-        if self.table_name not in self.db.table_names():
-            self.table = self.db.create_table(self.table_name, schema=schema)
-            print(f"Created new table: {self.table_name}")
-        else:
-            self.table = self.db.open_table(self.table_name)
-            print(f"Opened existing table: {self.table_name}")
-
-    def _init_fts_index(self):
-        """Initialize Full-Text Search index on lossless_restatement column."""
-        if self._fts_initialized:
-            return
-
-        try:
-            if self._is_cloud_storage:
-                # Use native FTS for cloud storage (Tantivy only works with local filesystem)
-                self.table.create_fts_index(
-                    "lossless_restatement",
-                    use_tantivy=False,
-                    replace=True
-                )
-                print("FTS index created (native mode for cloud storage)")
-            else:
-                # Use Tantivy FTS for local storage (better performance)
-                self.table.create_fts_index(
-                    "lossless_restatement",
-                    use_tantivy=True,
-                    tokenizer_name="en_stem",
-                    replace=True
-                )
-                print("FTS index created (Tantivy mode)")
-            self._fts_initialized = True
-        except Exception as e:
-            print(f"FTS index creation skipped: {e}")
-
-    def _results_to_entries(self, results: List[dict]) -> List[MemoryEntry]:
-        """Convert LanceDB results to MemoryEntry objects."""
-        entries = []
-        for r in results:
-            try:
-                entries.append(MemoryEntry(
-                    entry_id=r["entry_id"],
-                    lossless_restatement=r["lossless_restatement"],
-                    keywords=list(r.get("keywords") or []),
-                    timestamp=r.get("timestamp") or None,
-                    location=r.get("location") or None,
-                    persons=list(r.get("persons") or []),
-                    entities=list(r.get("entities") or []),
-                    topic=r.get("topic") or None
-                ))
-            except Exception as e:
-                print(f"Warning: Failed to parse result: {e}")
-                continue
-        return entries
-
-    def add_entries(self, entries: List[MemoryEntry]):
-        """Batch add memory entries."""
+    def add_entries(self, entries: List[MemoryEntry]) -> None:
+        """Embed and insert a batch of memory entries."""
         if not entries:
             return
 
         restatements = [entry.lossless_restatement for entry in entries]
         vectors = self.embedding_model.encode_documents(restatements)
+        records = [
+            VectorStoreRecord(
+                entry_id=entry.entry_id,
+                vector=vector.tolist(),
+                metadata={
+                    "lossless_restatement": entry.lossless_restatement,
+                    "keywords": entry.keywords,
+                    "timestamp": entry.timestamp or "",
+                    "location": entry.location or "",
+                    "persons": entry.persons,
+                    "entities": entry.entities,
+                    "topic": entry.topic or "",
+                },
+            )
+            for entry, vector in zip(entries, vectors)
+        ]
 
-        data = []
-        for entry, vector in zip(entries, vectors):
-            data.append({
-                "entry_id": entry.entry_id,
-                "lossless_restatement": entry.lossless_restatement,
-                "keywords": entry.keywords,
-                "timestamp": entry.timestamp or "",
-                "location": entry.location or "",
-                "persons": entry.persons,
-                "entities": entry.entities,
-                "topic": entry.topic or "",
-                "vector": vector.tolist()
-            })
-
-        self.table.add(data)
+        self.backend.insert(records)
         print(f"Added {len(entries)} memory entries")
 
-        # Initialize FTS index after first data insertion
-        if not self._fts_initialized:
-            self._init_fts_index()
-
     def semantic_search(self, query: str, top_k: int = 5) -> List[MemoryEntry]:
-        """
-        Semantic Layer Search - Dense vector similarity (Section 3.1)
-        s_k = E_dense(m_k)
-        """
+        """Search the semantic retrieval path."""
         try:
-            if self.table.count_rows() == 0:
+            if self.backend.count() == 0:
                 return []
 
             query_vector = self.embedding_model.encode_single(query, is_query=True)
-            results = self.table.search(query_vector.tolist()).limit(top_k).to_list()
+            results = self.backend.semantic_search(
+                query_vector.tolist(),
+                top_k=top_k,
+            )
             return self._results_to_entries(results)
-
-        except Exception as e:
-            print(f"Error during semantic search: {e}")
+        except Exception as error:
+            print(f"Error during semantic search: {error}")
             return []
 
-    def keyword_search(self, keywords: List[str], top_k: int = 3) -> List[MemoryEntry]:
-        """
-        Lexical Layer Search - BM25 keyword matching (Section 3.1)
-        l_k = E_sparse(m_k)
-        """
+    def keyword_search(
+        self,
+        keywords: List[str],
+        top_k: int = 3,
+    ) -> List[MemoryEntry]:
+        """Search the lexical full-text retrieval path."""
         try:
-            if not keywords or self.table.count_rows() == 0:
+            if not keywords or self.backend.count() == 0:
                 return []
-
-            # LanceDB auto-detects string input as FTS query when FTS index exists
-            query = " ".join(keywords)
-            results = self.table.search(query).limit(top_k).to_list()
-            return self._results_to_entries(results)
-
-        except Exception as e:
-            print(f"Error during keyword search: {e}")
+            return self._results_to_entries(
+                self.backend.keyword_search(keywords, top_k=top_k)
+            )
+        except Exception as error:
+            print(f"Error during keyword search: {error}")
             return []
 
     def structured_search(
@@ -188,63 +117,62 @@ class VectorStore:
         timestamp_range: Optional[tuple] = None,
         location: Optional[str] = None,
         entities: Optional[List[str]] = None,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
     ) -> List[MemoryEntry]:
-        """
-        Symbolic Layer Search - Metadata filtering (Section 3.1)
-        r_k = E_sym(m_k), filters by timestamps, entities, persons
-        """
+        """Search the structured metadata retrieval path."""
         try:
-            if self.table.count_rows() == 0:
+            if self.backend.count() == 0:
                 return []
-
             if not any([persons, timestamp_range, location, entities]):
                 return []
 
-            conditions = []
-
-            if persons:
-                values = ", ".join([f"'{p}'" for p in persons])
-                conditions.append(f"array_has_any(persons, make_array({values}))")
-
-            if location:
-                safe_location = location.replace("'", "''")
-                conditions.append(f"location LIKE '%{safe_location}%'")
-
-            if entities:
-                values = ", ".join([f"'{e}'" for e in entities])
-                conditions.append(f"array_has_any(entities, make_array({values}))")
-
-            if timestamp_range:
-                start_time, end_time = timestamp_range
-                conditions.append(f"timestamp >= '{start_time}' AND timestamp <= '{end_time}'")
-
-            where_clause = " AND ".join(conditions)
-            query = self.table.search().where(where_clause, prefilter=True)
-
-            if top_k:
-                query = query.limit(top_k)
-
-            results = query.to_list()
-            return self._results_to_entries(results)
-
-        except Exception as e:
-            print(f"Error during structured search: {e}")
+            return self._results_to_entries(
+                self.backend.structured_search(
+                    persons=persons,
+                    timestamp_range=timestamp_range,
+                    location=location,
+                    entities=entities,
+                    top_k=top_k,
+                )
+            )
+        except Exception as error:
+            print(f"Error during structured search: {error}")
             return []
 
     def get_all_entries(self) -> List[MemoryEntry]:
         """Get all memory entries."""
-        results = self.table.to_arrow().to_pylist()
-        return self._results_to_entries(results)
+        return self._results_to_entries(self.backend.get_all())
 
-    def optimize(self):
-        """Optimize table after bulk insertions for better query performance."""
-        self.table.optimize()
+    def optimize(self) -> None:
+        """Optimize backend indexes after bulk insertions."""
+        self.backend.optimize()
         print("Table optimized")
 
-    def clear(self):
-        """Clear all data and reinitialize table."""
-        self.db.drop_table(self.table_name)
-        self._fts_initialized = False
-        self._init_table()
+    def clear(self) -> None:
+        """Clear all backend data."""
+        self.backend.clear()
         print("Database cleared")
+
+    @staticmethod
+    def _results_to_entries(
+        results: List[VectorStoreSearchResult],
+    ) -> List[MemoryEntry]:
+        entries = []
+        for result in results:
+            try:
+                metadata = result.metadata
+                entries.append(
+                    MemoryEntry(
+                        entry_id=result.entry_id,
+                        lossless_restatement=metadata["lossless_restatement"],
+                        keywords=list(metadata.get("keywords") or []),
+                        timestamp=metadata.get("timestamp") or None,
+                        location=metadata.get("location") or None,
+                        persons=list(metadata.get("persons") or []),
+                        entities=list(metadata.get("entities") or []),
+                        topic=metadata.get("topic") or None,
+                    )
+                )
+            except Exception as error:
+                print(f"Warning: Failed to parse result: {error}")
+        return entries

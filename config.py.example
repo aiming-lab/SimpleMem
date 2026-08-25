@@ -20,12 +20,14 @@ OPENAI_API_KEY = "your-api-key-here"
 # Examples:
 #   - Qwen/Alibaba: "https://dashscope.aliyuncs.com/compatible-mode/v1"
 #   - Azure OpenAI: "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT"
+#   - Atlas Cloud: "https://api.atlascloud.ai/v1"  (OpenAI-compatible; LLM_MODEL e.g. "deepseek-ai/deepseek-v4-pro")
 #   - Local server: "http://localhost:8000/v1"
 #   - OpenAI (default): None
 OPENAI_BASE_URL = None
 
 # LLM Model name
-# Examples: "gpt-4.1-mini", "gpt-4.1", "qwen3-max", "qwen-plus-2025-07-28"
+# Examples: "gpt-4.1-mini", "gpt-4.1", "qwen3-max", "qwen-plus-2025-07-28",
+#           "deepseek-ai/deepseek-v4-pro" (Atlas Cloud)
 LLM_MODEL = "gpt-4.1-mini"
 
 # Embedding model (local, no API needed)

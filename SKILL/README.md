@@ -68,6 +68,7 @@ Supported models (configurable):
 
 - **Main Guide**: `simplemem-skill/SKILL.md`
 - **OpenRouter Setup**: `simplemem-skill/references/openrouter-guide.md`
+- **Requesty Setup**: `simplemem-skill/references/requesty-guide.md`
 - **Import Guide**: `simplemem-skill/references/import-guide.md`
 - **CLI Reference**: `simplemem-skill/references/cli-reference.md`
 - **Architecture Details**: `simplemem-skill/references/architecture.md`

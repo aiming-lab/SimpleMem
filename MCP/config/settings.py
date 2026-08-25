@@ -3,6 +3,8 @@ Settings configuration for SimpleMem MCP Server
 """
 
 import os
+import sys
+import warnings
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -59,13 +61,19 @@ class Settings:
     # LLM Provider Configuration
     llm_provider: str = field(default_factory=lambda: os.getenv(
         "LLM_PROVIDER",
-        "openrouter"  # Options: "openrouter", "ollama"
+        "openrouter"  # Options: "openrouter", "requesty", "ollama"
     ))
 
     # OpenRouter Configuration (used when llm_provider is "openrouter")
     openrouter_base_url: str = field(default_factory=lambda: os.getenv(
         "OPENROUTER_BASE_URL",
         "https://openrouter.ai/api/v1"
+    ))
+
+    # Requesty Configuration (used when llm_provider is "requesty")
+    requesty_base_url: str = field(default_factory=lambda: os.getenv(
+        "REQUESTY_BASE_URL",
+        "https://router.requesty.ai/v1"
     ))
 
     # Ollama Configuration (used when llm_provider is "ollama")
@@ -114,6 +122,27 @@ class Settings:
                 f"Cannot create data dir(s): {e}. "
                 "In Docker, use a named volume for data (see docker-compose.yml) or ensure the mounted dir is writable by the container user."
             ) from e
+
+        # Warn loudly if the built-in default secrets are still in use. These
+        # defaults are only meant for local development; running with them in a
+        # shared/production deployment lets anyone who reads the source forge
+        # JWT tokens or decrypt stored API keys.
+        _default_jwt = "simplemem-secret-key-change-in-production"
+        _default_enc = "simplemem-encryption-key-32bytes!"
+        insecure = []
+        if self.jwt_secret_key == _default_jwt:
+            insecure.append("JWT_SECRET_KEY")
+        if self.encryption_key == _default_enc:
+            insecure.append("ENCRYPTION_KEY")
+        if insecure:
+            msg = (
+                "SECURITY WARNING: using built-in default value(s) for "
+                f"{', '.join(insecure)}. Set {' and '.join(insecure)} to strong, "
+                "unique secret(s) via environment variables before exposing this "
+                "server to any untrusted network."
+            )
+            warnings.warn(msg, stacklevel=2)
+            print(f"[SimpleMem] {msg}", file=sys.stderr)
 
 
 @lru_cache()

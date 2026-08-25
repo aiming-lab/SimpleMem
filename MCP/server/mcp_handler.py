@@ -15,8 +15,8 @@ from .core.memory_builder import MemoryBuilder
 from .core.retriever import Retriever
 from .core.answer_generator import AnswerGenerator
 
-# Type alias for client manager (supports both OpenRouter and Ollama)
-ClientManager = object  # Duck-typed: can be OpenRouterClientManager or OllamaClientManager
+# Type alias for client manager (supports OpenRouter, Requesty, and Ollama)
+ClientManager = object  # Duck-typed: can be OpenRouterClientManager, RequestyClientManager, or OllamaClientManager
 
 
 @dataclass

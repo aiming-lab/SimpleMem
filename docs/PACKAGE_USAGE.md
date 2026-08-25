@@ -2,6 +2,10 @@
 
 This guide provides comprehensive documentation for using SimpleMem as a pip-installable Python package.
 
+> **Public API.** The package exposes a small, stable surface:
+> `SimpleMem`, `create`, `list_modes`, `optimize`, `Config`, and `load_config`
+> (see `simplemem.__all__`). All examples below use these names.
+
 ---
 
 ## Table of Contents
@@ -62,170 +66,215 @@ pip install simplemem[all]
 ### Minimal Example
 
 ```python
-from simplemem import SimpleMemSystem
+from simplemem import SimpleMem
 
-# Initialize the system with your API key
-system = SimpleMemSystem(
-    api_key="your-openai-api-key",
-    clear_db=True  # Start fresh
-)
+# Initialize the system. mode="auto" (default): the backend is chosen
+# by the first method you call — add_dialogue() selects the text backend.
+mem = SimpleMem()
 
 # Add dialogues with timestamps
-system.add_dialogue("Alice", "Let's meet at Starbucks tomorrow at 2pm", "2025-01-15T14:30:00")
-system.add_dialogue("Bob", "Sure, I'll bring the report", "2025-01-15T14:31:00")
+mem.add_dialogue("Alice", "Let's meet at Starbucks tomorrow at 2pm", "2025-01-15T14:30:00")
+mem.add_dialogue("Bob", "Sure, I'll bring the report", "2025-01-15T14:31:00")
 
 # Finalize memory encoding
-system.finalize()
+mem.finalize()
 
 # Query the memory
-answer = system.ask("When and where will Alice and Bob meet?")
+answer = mem.ask("When and where will Alice and Bob meet?")
 print(answer)
 # Output: "Alice and Bob will meet at Starbucks on January 16, 2025 at 2:00 PM"
 ```
+
+Provide the API key via the `OPENAI_API_KEY` environment variable, a top-level
+`config.py` (see [`config.py.example`](../config.py.example)), or by passing it
+explicitly (see [Using Custom LLM Endpoints](#using-custom-llm-endpoints)).
 
 ### Using Environment Variables
 
 ```python
 import os
-from simplemem import SimpleMemSystem
+from simplemem import SimpleMem
 
 # Set API key via environment variable
 os.environ["OPENAI_API_KEY"] = "your-api-key"
 
-# Initialize without explicit api_key parameter
-system = SimpleMemSystem(clear_db=True)
+# Initialize (reads OPENAI_API_KEY from the environment)
+mem = SimpleMem()
 ```
+
+### Choosing a Backend Explicitly
+
+`SimpleMem()` auto-selects a backend, but you can request one directly with
+`create()`:
+
+```python
+from simplemem import create, list_modes
+
+# Single-modal text memory
+mem = create(mode="text", clear_db=True)
+
+# Multimodal memory (text, image, audio, video)
+mem = create(mode="omni", data_dir="./my_memory")
+
+# Inspect the available backends
+print(list_modes())
+# {'text': 'Single-modal text memory ...', 'omni': 'Multimodal memory ...'}
+```
+
+`create(mode="text", ...)` returns the text memory system directly, exposing the
+full text API (`add_dialogue`, `add_dialogues`, `finalize`, `ask`,
+`get_all_memories`, `print_memories`).
 
 ---
 
 ## Configuration
 
-SimpleMem offers flexible configuration through three priority levels:
+SimpleMem resolves runtime settings in the following order (highest priority first):
 
-1. **Constructor Parameters** (highest priority)
-2. **Environment Variables**
-3. **Default Values** (lowest priority)
+1. **Constructor parameters** passed to `SimpleMem(...)` / `create(...)`
+2. **A top-level `config.py`** on the Python path (copy from `config.py.example`)
+3. **Environment variables** of the same name (e.g. `OPENAI_API_KEY`, `LLM_MODEL`)
+4. **Built-in defaults**
 
-### Using SimpleMemConfig
+### Using `config.py`
 
-```python
-from simplemem import SimpleMemConfig, set_config, SimpleMemSystem
+The simplest way to configure a local checkout is to copy the template and edit it:
 
-# Create custom configuration
-config = SimpleMemConfig(
-    openai_api_key="your-api-key",
-    llm_model="gpt-4.1-mini",
-    embedding_model="Qwen/Qwen3-Embedding-0.6B",
-    iris_hostname="localhost",
-    iris_port=1972,
-    iris_namespace="USER",
-    iris_username="_SYSTEM",
-    iris_password="SYS",
-    enable_parallel_processing=True,
-    max_parallel_workers=8,
-)
-
-# Set as global config
-set_config(config)
-
-# Create system (will use global config)
-system = SimpleMemSystem(clear_db=True)
+```bash
+cp config.py.example config.py
+# Edit config.py with your API key, base URL, and model preferences
 ```
 
-### Configuration Options
+```python
+# config.py
+OPENAI_API_KEY = "your-api-key"
+OPENAI_BASE_URL = None            # or a custom OpenAI-compatible endpoint
+LLM_MODEL = "gpt-4.1-mini"
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
+```
+
+### Constructor Parameters (text backend)
+
+When you use the text backend, the constructor accepts:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `openai_api_key` | str | `$OPENAI_API_KEY` | OpenAI API key |
-| `openai_base_url` | str | None | Custom API endpoint |
-| `llm_model` | str | `"gpt-4.1-mini"` | LLM model name |
-| `embedding_model` | str | `"Qwen/Qwen3-Embedding-0.6B"` | Embedding model |
-| `iris_hostname` | str | `"localhost"` | IRIS server hostname |
-| `iris_port` | int | `1972` | IRIS superserver port |
-| `iris_namespace` | str | `"USER"` | IRIS namespace |
-| `iris_username` | str | `"_SYSTEM"` | IRIS username |
-| `iris_password` | str | `"SYS"` | IRIS password |
-| `memory_table_name` | str | `"memory_entries"` | IRIS table (auto-created) |
-| `enable_parallel_processing` | bool | True | Parallel memory building |
-| `max_parallel_workers` | int | 16 | Max workers for building |
-| `enable_parallel_retrieval` | bool | True | Parallel query execution |
-| `max_retrieval_workers` | int | 8 | Max workers for retrieval |
-| `enable_planning` | bool | True | Multi-query planning |
-| `enable_reflection` | bool | True | Reflection-based retrieval |
-| `max_reflection_rounds` | int | 2 | Max reflection iterations |
+| `api_key` | str | `$OPENAI_API_KEY` | OpenAI-compatible API key |
+| `model` | str | `"gpt-4.1-mini"` | LLM model name |
+| `base_url` | str | None | Custom API endpoint |
+| `db_path` | str | `"./lancedb_data"` | LanceDB storage path |
+| `table_name` | str | `"memory_entries"` | Memory table name |
+| `clear_db` | bool | False | Clear existing database on start |
+| `enable_thinking` | bool | None | Deep-thinking mode (Qwen-compatible models) |
+| `use_streaming` | bool | None | Stream LLM responses |
+| `enable_planning` | bool | None | Multi-query retrieval planning |
+| `enable_reflection` | bool | None | Reflection-based retrieval |
+| `max_reflection_rounds` | int | None | Max reflection iterations |
+| `enable_parallel_processing` | bool | None | Parallel memory building |
+| `max_parallel_workers` | int | None | Max workers for building |
+| `enable_parallel_retrieval` | bool | None | Parallel query execution |
+| `max_retrieval_workers` | int | None | Max workers for retrieval |
+
+`None` means "fall back to the value from `config.py`, the environment, or the
+built-in default."
+
+```python
+from simplemem import create
+
+mem = create(
+    mode="text",
+    clear_db=True,
+    model="gpt-4.1-mini",
+    enable_parallel_processing=True,
+    max_parallel_workers=8,
+)
+```
+
+### Optimized Retrieval Config
+
+`optimize()` produces a `Config` object that tunes retrieval hyperparameters for
+your data. Save it once and reload it for deployment:
+
+```python
+import simplemem
+from simplemem import SimpleMem, load_config
+
+# mem is a finalized SimpleMem instance with memories already built
+dev_questions = [
+    ("When is the meeting?", "2pm tomorrow at Starbucks"),
+    ("What should Bob prepare?", "the report"),
+]
+config = simplemem.optimize(mem, dev_questions, max_rounds=3)
+config.save("my_config.json")
+
+# Later, deploy with the optimized config
+config = load_config("my_config.json")
+mem = SimpleMem(config=config)
+```
+
+See [`EvolveMem/`](../EvolveMem/) for the full self-evolution loop and the
+meaning of each `Config` field.
 
 ---
 
 ## Core API Reference
 
-### SimpleMemSystem
+### `SimpleMem`
 
-The main class for interacting with SimpleMem.
+The main entry point. In the default `mode="auto"`, the first method you call
+selects the backend:
 
-#### Constructor
+| First call | Backend | API surface |
+|:--|:--|:--|
+| `add_dialogue()` | text | `add_dialogue`, `add_dialogues`, `finalize`, `ask`, `get_all_memories` |
+| `add_text()` / `add_image()` / `add_audio()` / `add_video()` | omni | `add_text`, `add_image`, `add_audio`, `add_video`, `query`, `close` |
 
-```python
-SimpleMemSystem(
-    api_key: Optional[str] = None,
-    model: Optional[str] = None,
-    base_url: Optional[str] = None,
-    db_path: Optional[str] = None,
-    table_name: Optional[str] = None,
-    clear_db: bool = False,
-    enable_thinking: Optional[bool] = None,
-    use_streaming: Optional[bool] = None,
-    enable_planning: Optional[bool] = None,
-    enable_reflection: Optional[bool] = None,
-    max_reflection_rounds: Optional[int] = None,
-    enable_parallel_processing: Optional[bool] = None,
-    max_parallel_workers: Optional[int] = None,
-    enable_parallel_retrieval: Optional[bool] = None,
-    max_retrieval_workers: Optional[int] = None,
-)
-```
+Once a backend is chosen it cannot be switched for that instance; create a new
+instance (or use `create(mode=...)`) to change backends.
 
-#### Methods
+#### Text methods
 
 ##### `add_dialogue(speaker, content, timestamp=None)`
 
 Add a single dialogue entry to the memory.
 
 ```python
-system.add_dialogue(
+mem.add_dialogue(
     speaker="Alice",
     content="I finished the quarterly report",
-    timestamp="2025-01-15T10:00:00"  # ISO 8601 format
+    timestamp="2025-01-15T10:00:00",  # ISO 8601 format
 )
 ```
 
 ##### `add_dialogues(dialogues)`
 
-Batch add multiple dialogues.
+Batch-add multiple dialogues.
 
 ```python
-from simplemem import Dialogue
+from simplemem.core.models.memory_entry import Dialogue
 
 dialogues = [
     Dialogue(dialogue_id=1, speaker="Alice", content="Hello", timestamp="2025-01-15T10:00:00"),
     Dialogue(dialogue_id=2, speaker="Bob", content="Hi there!", timestamp="2025-01-15T10:01:00"),
 ]
-system.add_dialogues(dialogues)
+mem.add_dialogues(dialogues)
 ```
 
 ##### `finalize()`
 
-Process any remaining dialogues in the buffer. Always call this after adding all dialogues.
+Process any remaining dialogues in the buffer. Always call this after adding all
+dialogues and before querying.
 
 ```python
-system.finalize()
+mem.finalize()
 ```
 
 ##### `ask(question)`
 
-Query the memory system with a natural language question.
+Query the memory system with a natural-language question.
 
 ```python
-answer = system.ask("What did Alice say about the report?")
+answer = mem.ask("What did Alice say about the report?")
 ```
 
 ##### `get_all_memories()`
@@ -233,32 +282,47 @@ answer = system.ask("What did Alice say about the report?")
 Retrieve all stored memory entries (useful for debugging).
 
 ```python
-memories = system.get_all_memories()
-for mem in memories:
-    print(f"Entry: {mem.lossless_restatement}")
+for entry in mem.get_all_memories():
+    print(entry.lossless_restatement)
 ```
 
-##### `print_memories()`
+#### Multimodal methods
 
-Print all memory entries in a formatted manner.
+When the omni backend is selected, `query()` returns a result whose `.items`
+each expose a `"summary"`:
 
 ```python
-system.print_memories()
+mem = SimpleMem()  # auto mode
+mem.add_text("User loves hiking in the Rocky Mountains.", tags=["session_id:D1"])
+mem.add_image("photo.jpg", tags=["session_id:D1"])
+
+result = mem.query("What does the user enjoy?", top_k=5)
+for item in result.items:
+    print(item["summary"])
+
+mem.close()
 ```
 
-### create_system()
+### `create(mode="auto", **kwargs)`
 
-Factory function to create a SimpleMem system with simplified parameters.
+Factory that returns a backend instance. `kwargs` are forwarded to the selected
+backend's constructor.
 
 ```python
-from simplemem import create_system
+from simplemem import create
 
-system = create_system(
-    clear_db=True,
-    enable_parallel_processing=True,
-    max_parallel_workers=8
-)
+mem = create(mode="text", clear_db=True)
 ```
+
+### `optimize(mem, dev_questions, max_rounds=7)`
+
+Runs EvolveMem's offline diagnosis loop over `dev_questions`
+(a list of `(question, ground_truth)` tuples) and returns an optimized `Config`.
+
+### `Config` / `load_config(path)`
+
+Retrieval configuration produced by `optimize()`. `Config.save(path)` writes JSON;
+`load_config(path)` (or `Config.from_file(path)`) reads it back.
 
 ---
 
@@ -269,35 +333,41 @@ system = create_system(
 For processing large dialogue datasets, enable parallel processing:
 
 ```python
-system = SimpleMemSystem(
-    api_key="your-key",
+from simplemem import create
+
+mem = create(
+    mode="text",
     clear_db=True,
     enable_parallel_processing=True,
     max_parallel_workers=16,  # Adjust based on your CPU cores
     enable_parallel_retrieval=True,
-    max_retrieval_workers=8
+    max_retrieval_workers=8,
 )
 ```
 
 ### Using Custom LLM Endpoints
 
-SimpleMem supports OpenAI-compatible APIs:
+SimpleMem talks to any OpenAI-compatible API:
 
 ```python
-# Using Qwen API
-system = SimpleMemSystem(
+from simplemem import create
+
+# Using Qwen (Alibaba DashScope)
+mem = create(
+    mode="text",
     api_key="your-qwen-api-key",
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     model="qwen-plus",
-    clear_db=True
+    clear_db=True,
 )
 
 # Using Azure OpenAI
-system = SimpleMemSystem(
+mem = create(
+    mode="text",
     api_key="your-azure-key",
-    base_url="https://your-resource.openai.azure.com/",
-    model="gpt-4",
-    clear_db=True
+    base_url="https://your-resource.openai.azure.com/openai/deployments/your-deployment",
+    model="gpt-4.1-mini",
+    clear_db=True,
 )
 ```
 
@@ -306,19 +376,13 @@ system = SimpleMemSystem(
 Use separate tables for different users or contexts:
 
 ```python
+from simplemem import create
+
 # User A's memory
-system_a = SimpleMemSystem(
-    api_key="your-key",
-    table_name="user_alice_memories",
-    clear_db=False
-)
+system_a = create(mode="text", table_name="user_alice_memories", clear_db=False)
 
 # User B's memory
-system_b = SimpleMemSystem(
-    api_key="your-key",
-    table_name="user_bob_memories",
-    clear_db=False
-)
+system_b = create(mode="text", table_name="user_bob_memories", clear_db=False)
 ```
 
 ### Deep Thinking Mode
@@ -326,49 +390,39 @@ system_b = SimpleMemSystem(
 Enable enhanced reasoning for complex queries (supported by Qwen models):
 
 ```python
-system = SimpleMemSystem(
-    api_key="your-key",
-    enable_thinking=True,
-    clear_db=True
-)
+from simplemem import create
+
+mem = create(mode="text", enable_thinking=True, clear_db=True)
 ```
 
 ---
 
 ## Data Models
 
-### MemoryEntry
+The dialogue and memory data classes live in
+`simplemem.core.models.memory_entry`.
 
-Represents an atomic, self-contained memory unit.
+### `MemoryEntry`
+
+Represents an atomic, self-contained memory unit produced by the compression
+pipeline (returned by `get_all_memories()`).
 
 ```python
-from simplemem import MemoryEntry
-
-# MemoryEntry structure
-entry = MemoryEntry(
-    entry_id="unique-id",
-    lossless_restatement="Alice discussed the marketing strategy with Bob at Starbucks on 2025-01-15.",
-    keywords=["Alice", "Bob", "marketing", "strategy"],
-    timestamp="2025-01-15T14:30:00",
-    location="Starbucks, Shanghai",
-    persons=["Alice", "Bob"],
-    entities=["marketing strategy"],
-    topic="Product marketing discussion"
-)
+from simplemem.core.models.memory_entry import MemoryEntry
 ```
 
-### Dialogue
+### `Dialogue`
 
-Represents a raw dialogue input.
+Represents a raw dialogue input for `add_dialogues()`.
 
 ```python
-from simplemem import Dialogue
+from simplemem.core.models.memory_entry import Dialogue
 
 dialogue = Dialogue(
     dialogue_id=1,
     speaker="Alice",
     content="Let's discuss the new product launch",
-    timestamp="2025-01-15T14:30:00"
+    timestamp="2025-01-15T14:30:00",
 )
 ```
 
@@ -376,26 +430,31 @@ dialogue = Dialogue(
 
 ## Environment Variables
 
-SimpleMem supports the following environment variables:
+Settings are read from the environment when they are not set in `config.py` or
+passed to the constructor. The variable name matches the `config.py` key:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key | Required |
+| `OPENAI_API_KEY` | OpenAI-compatible API key | Required |
 | `OPENAI_BASE_URL` | Custom API endpoint | None |
-| `SIMPLEMEM_MODEL` | LLM model name | `"gpt-4.1-mini"` |
-| `SIMPLEMEM_EMBEDDING_MODEL` | Embedding model | `"Qwen/Qwen3-Embedding-0.6B"` |
-| `SIMPLEMEM_IRIS_HOSTNAME` | IRIS server hostname | `"localhost"` |
-| `SIMPLEMEM_IRIS_PORT` | IRIS superserver port | `1972` |
+| `LLM_MODEL` | LLM model name | `"gpt-4.1-mini"` |
+| `EMBEDDING_MODEL` | Embedding model | `"Qwen/Qwen3-Embedding-0.6B"` |
+| `EMBEDDING_DIMENSION` | Embedding dimension | `1024` |
+| `LANCEDB_PATH` | LanceDB storage path | `"./lancedb_data"` |
+| `MEMORY_TABLE_NAME` | Memory table name | `"memory_entries"` |
 
 Example `.env` file:
 
 ```bash
 OPENAI_API_KEY=sk-your-api-key
 OPENAI_BASE_URL=https://api.openai.com/v1
-SIMPLEMEM_MODEL=gpt-4.1-mini
-SIMPLEMEM_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
-SIMPLEMEM_DB_PATH=./my_memory_db
+LLM_MODEL=gpt-4.1-mini
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
+LANCEDB_PATH=./my_memory_db
 ```
+
+> The MCP server (Docker) uses a separate set of variables; see
+> [`.env.example`](../.env.example) and the [MCP documentation](../MCP/README.md).
 
 ---
 
@@ -404,36 +463,38 @@ SIMPLEMEM_DB_PATH=./my_memory_db
 ### Personal Assistant Memory
 
 ```python
-from simplemem import SimpleMemSystem
+from simplemem import create
 import os
 
 os.environ["OPENAI_API_KEY"] = "your-key"
 
-# Create a persistent memory for personal assistant
-system = SimpleMemSystem(
+# Create a persistent memory for a personal assistant
+mem = create(
+    mode="text",
     db_path="./assistant_memory",
-    clear_db=False  # Persist across sessions
+    clear_db=False,  # Persist across sessions
 )
 
 # Add user preferences
-system.add_dialogue("User", "I prefer to wake up at 6am", "2025-01-15T08:00:00")
-system.add_dialogue("User", "I'm allergic to peanuts", "2025-01-15T08:05:00")
-system.add_dialogue("User", "My favorite restaurant is The Green Kitchen", "2025-01-15T08:10:00")
-system.finalize()
+mem.add_dialogue("User", "I prefer to wake up at 6am", "2025-01-15T08:00:00")
+mem.add_dialogue("User", "I'm allergic to peanuts", "2025-01-15T08:05:00")
+mem.add_dialogue("User", "My favorite restaurant is The Green Kitchen", "2025-01-15T08:10:00")
+mem.finalize()
 
 # Later, query preferences
-answer = system.ask("What are the user's dietary restrictions?")
+answer = mem.ask("What are the user's dietary restrictions?")
 print(answer)  # "The user is allergic to peanuts"
 ```
 
 ### Meeting Notes Processing
 
 ```python
-from simplemem import SimpleMemSystem, Dialogue
+from simplemem import create
+from simplemem.core.models.memory_entry import Dialogue
 
-system = SimpleMemSystem(api_key="your-key", clear_db=True)
+mem = create(mode="text", clear_db=True)
 
-# Process meeting transcript
+# Process a meeting transcript
 meeting_dialogues = [
     Dialogue(dialogue_id=1, speaker="PM", content="Let's review Q1 targets", timestamp="2025-01-15T10:00:00"),
     Dialogue(dialogue_id=2, speaker="Sales", content="We achieved 120% of our target", timestamp="2025-01-15T10:02:00"),
@@ -441,37 +502,29 @@ meeting_dialogues = [
     Dialogue(dialogue_id=4, speaker="Finance", content="Budget approval needed by Friday", timestamp="2025-01-15T10:08:00"),
 ]
 
-system.add_dialogues(meeting_dialogues)
-system.finalize()
+mem.add_dialogues(meeting_dialogues)
+mem.finalize()
 
 # Query meeting insights
-print(system.ask("What was the Q1 performance?"))
-print(system.ask("What's the deadline for budget approval?"))
+print(mem.ask("What was the Q1 performance?"))
+print(mem.ask("What's the deadline for budget approval?"))
 ```
 
 ### Multi-Session Memory
 
 ```python
-from simplemem import SimpleMemSystem
+from simplemem import create
 
 # Session 1: Add information
-system = SimpleMemSystem(
-    api_key="your-key",
-    db_path="./persistent_memory",
-    clear_db=False
-)
-system.add_dialogue("User", "My birthday is March 15th", "2025-01-10T10:00:00")
-system.finalize()
+mem = create(mode="text", db_path="./persistent_memory", clear_db=False)
+mem.add_dialogue("User", "My birthday is March 15th", "2025-01-10T10:00:00")
+mem.finalize()
 
 # ... application closes ...
 
 # Session 2: Query previously stored information
-system = SimpleMemSystem(
-    api_key="your-key",
-    db_path="./persistent_memory",
-    clear_db=False  # Keep existing data
-)
-answer = system.ask("When is the user's birthday?")
+mem = create(mode="text", db_path="./persistent_memory", clear_db=False)
+answer = mem.ask("When is the user's birthday?")
 print(answer)  # "The user's birthday is March 15th"
 ```
 
@@ -487,11 +540,12 @@ print(answer)  # "The user's birthday is March 15th"
 Error: OpenAI API key not found
 ```
 
-**Solution**: Set the API key via environment variable or constructor parameter:
+**Solution**: Set the API key via environment variable, `config.py`, or the constructor:
 ```python
+import os
 os.environ["OPENAI_API_KEY"] = "your-key"
 # or
-system = SimpleMemSystem(api_key="your-key")
+mem = create(mode="text", api_key="your-key")
 ```
 
 #### Database Permission Error
@@ -502,25 +556,26 @@ Error: Cannot write to database path
 
 **Solution**: Ensure the database path is writable:
 ```python
-system = SimpleMemSystem(db_path="/path/with/write/permission")
+mem = create(mode="text", db_path="/path/with/write/permission")
 ```
 
 #### Memory Not Found in Query
 
 **Solution**: Ensure `finalize()` is called after adding all dialogues:
 ```python
-system.add_dialogue(...)
-system.finalize()  # Don't forget this!
-answer = system.ask(...)
+mem.add_dialogue(...)
+mem.finalize()  # Don't forget this!
+answer = mem.ask(...)
 ```
 
 #### Slow Performance with Large Datasets
 
 **Solution**: Enable parallel processing:
 ```python
-system = SimpleMemSystem(
+mem = create(
+    mode="text",
     enable_parallel_processing=True,
-    max_parallel_workers=16
+    max_parallel_workers=16,
 )
 ```
 

@@ -213,7 +213,7 @@ class VectorStore:
             conditions = []
 
             if persons:
-                values = ", ".join([f"'{p}'" for p in persons])
+                values = ", ".join(["'" + str(p).replace("'", "''") + "'" for p in persons])
                 conditions.append(f"array_has_any(persons, make_array({values}))")
 
             if location:
@@ -221,11 +221,13 @@ class VectorStore:
                 conditions.append(f"location LIKE '%{safe_location}%'")
 
             if entities:
-                values = ", ".join([f"'{e}'" for e in entities])
+                values = ", ".join(["'" + str(e).replace("'", "''") + "'" for e in entities])
                 conditions.append(f"array_has_any(entities, make_array({values}))")
 
             if timestamp_range:
                 start_time, end_time = timestamp_range
+                start_time = str(start_time).replace("'", "''")
+                end_time = str(end_time).replace("'", "''")
                 conditions.append(f"timestamp >= '{start_time}' AND timestamp <= '{end_time}'")
 
             where_clause = " AND ".join(conditions)

@@ -9,6 +9,7 @@ Supports:
 """
 
 import logging
+import ast
 import json
 import time
 from pathlib import Path
@@ -1032,7 +1033,7 @@ class MMLongBenchDocBenchmark(BaseBenchmark):
             evidence_pages = item.get("evidence_pages", "[]")
             if isinstance(evidence_pages, str):
                 try:
-                    evidence_pages = eval(evidence_pages)
+                    evidence_pages = ast.literal_eval(evidence_pages)
                 except:
                     evidence_pages = []
             
@@ -1040,7 +1041,7 @@ class MMLongBenchDocBenchmark(BaseBenchmark):
             evidence_sources = item.get("evidence_sources", "[]")
             if isinstance(evidence_sources, str):
                 try:
-                    evidence_sources = eval(evidence_sources)
+                    evidence_sources = ast.literal_eval(evidence_sources)
                 except:
                     evidence_sources = []
             

@@ -12,6 +12,17 @@
 
 <p><b>兼容任何支持 MCP（文本记忆）或 Python 集成（完整多模态）的 AI 平台</b></p>
 
+<!-- Atlas Cloud — SimpleMem 可运行的 OpenAI 兼容后端之一 -->
+<p align="center">
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=SimpleMem">
+    <img src="../../fig/atlas-cloud-logo.png" alt="Atlas Cloud" width="180">
+  </a>
+</p>
+
+<p align="center">
+🎁 <b><a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=SimpleMem">Atlas Cloud</a></b> 是一个全模态、OpenAI 兼容的 AI 推理平台——把 SimpleMem 的 <code>OPENAI_BASE_URL</code> 指向它，即可用 DeepSeek、Qwen、GLM、Kimi、MiniMax 等模型，通过单一 API 完成记忆构建、检索与评估，无需对接多家厂商。提供高性价比的 <a href="https://www.atlascloud.ai/console/coding-plan">coding plan</a>。
+</p>
+
 <table>
 <tr>
 
@@ -352,6 +363,19 @@ OPENAI_BASE_URL = None  # or custom endpoint for Qwen/Azure
 LLM_MODEL = "gpt-4.1-mini"
 EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # State-of-the-art retrieval
 ```
+
+由于 SimpleMem 对接任意 OpenAI 兼容端点，你也可以通过设置 `OPENAI_BASE_URL` 把它指向像 [Atlas Cloud](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=SimpleMem) 这样的托管平台：
+
+```python
+# config.py —— 使用 Atlas Cloud 作为 OpenAI 兼容后端
+OPENAI_API_KEY = "your-atlascloud-api-key"
+OPENAI_BASE_URL = "https://api.atlascloud.ai/v1"
+
+LLM_MODEL = "deepseek-ai/deepseek-v4-pro"   # 推理模型，注意预留足够的输出 token
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
+```
+
+> `deepseek-ai/deepseek-v4-pro` 是推理模型，请预留足够的输出预算；若返回为空，请调大 token 上限（>= 512）。Atlas Cloud 上其他 OpenAI 兼容聊天模型（如 `Qwen/Qwen3-Next-80B-A3B-Instruct`、`zai-org/glm-5`、`moonshotai/kimi-k2.6`）用法相同。
 
 ---
 

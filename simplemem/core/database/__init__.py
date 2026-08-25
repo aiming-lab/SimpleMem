@@ -17,6 +17,14 @@ if TYPE_CHECKING:
     from simplemem.core.database.vector_store import VectorStore as _LanceStore
     from simplemem.core.database.pg_vector_store import PGVectorStore
 
+from simplemem.core.database.vector_store_backend import (
+    LanceDBVectorStoreBackend,
+    ScoreOrder,
+    VectorStoreBackend,
+    VectorStoreRecord,
+    VectorStoreSearchResult,
+)
+
 
 def get_vector_store(**kwargs):
     """Return a VectorStore instance for the configured backend.
@@ -36,4 +44,12 @@ def get_vector_store(**kwargs):
 # Preserve direct import compatibility
 from simplemem.core.database.vector_store import VectorStore  # noqa: E402
 
-__all__ = ["VectorStore", "get_vector_store"]
+__all__ = [
+    "LanceDBVectorStoreBackend",
+    "ScoreOrder",
+    "VectorStore",
+    "VectorStoreBackend",
+    "VectorStoreRecord",
+    "VectorStoreSearchResult",
+    "get_vector_store",
+]

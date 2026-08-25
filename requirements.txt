@@ -55,7 +55,6 @@ intersystems-irispython
 langchain==1.1.0
 langchain-anthropic==1.2.0
 langchain-core==1.1.0
-langchain-openai==1.1.0
 langgraph==1.0.4
 langgraph-checkpoint==3.0.1
 langgraph-prebuilt==1.0.5

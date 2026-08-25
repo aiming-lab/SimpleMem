@@ -12,6 +12,17 @@
 
 <p><b>Works with any AI platform that supports MCP (text memory) or Python integration (full multimodal)</b></p>
 
+<!-- Atlas Cloud — one of the OpenAI-compatible backends SimpleMem can run on -->
+<p align="center">
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=SimpleMem">
+    <img src="fig/atlas-cloud-logo.png" alt="Atlas Cloud" width="180">
+  </a>
+</p>
+
+<p align="center">
+🎁 <b><a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=SimpleMem">Atlas Cloud</a></b> is a full-modal, OpenAI-compatible AI inference platform — point SimpleMem's <code>OPENAI_BASE_URL</code> at it to power memory construction, retrieval, and judging with DeepSeek, Qwen, GLM, Kimi, MiniMax and more through a single API, no multi-vendor setup needed. Budget-friendly <a href="https://www.atlascloud.ai/console/coding-plan">coding plan</a> available.
+</p>
+
 <table>
 <tr>
 
@@ -358,6 +369,19 @@ LLM_MODEL = "gpt-4.1-mini"
 EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # State-of-the-art retrieval
 ```
 
+Because SimpleMem talks to any OpenAI-compatible endpoint, you can point it at a managed provider such as [Atlas Cloud](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=SimpleMem) by setting `OPENAI_BASE_URL`:
+
+```python
+# config.py — using Atlas Cloud as an OpenAI-compatible backend
+OPENAI_API_KEY = "your-atlascloud-api-key"
+OPENAI_BASE_URL = "https://api.atlascloud.ai/v1"
+
+LLM_MODEL = "deepseek-ai/deepseek-v4-pro"   # a reasoning model — keep max tokens generous
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
+```
+
+> `deepseek-ai/deepseek-v4-pro` is a reasoning model, so leave enough output budget; if responses come back empty, raise the token limit (>= 512). Any other OpenAI-compatible chat model on Atlas Cloud (e.g. `Qwen/Qwen3-Next-80B-A3B-Instruct`, `zai-org/glm-5`, `moonshotai/kimi-k2.6`) works the same way.
+
 ---
 
 ## 🗄️ Using InterSystems IRIS as the Vector Backend
@@ -487,6 +511,17 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 ```
 
 On Linux, `host.docker.internal` is enabled automatically via the Compose file.
+
+### Using Requesty
+
+[Requesty](https://requesty.ai) is an OpenAI-compatible router. To use it, set in `.env`:
+
+```bash
+LLM_PROVIDER=requesty
+REQUESTY_BASE_URL=https://router.requesty.ai/v1
+```
+
+Provide your Requesty API key (from [app.requesty.ai/api-keys](https://app.requesty.ai/api-keys)) when registering. Models use the same `provider/model` naming as OpenRouter (e.g. `openai/gpt-4.1-mini`). See the [Requesty docs](https://docs.requesty.ai) for available models.
 
 ### Useful commands
 

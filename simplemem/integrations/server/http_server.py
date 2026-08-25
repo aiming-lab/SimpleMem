@@ -35,6 +35,7 @@ from .auth.models import User
 from .database.user_store import UserStore
 from .database.vector_store import MultiTenantVectorStore
 from .integrations.openrouter import OpenRouterClient, OpenRouterClientManager
+from .integrations.requesty import RequestyClient, RequestyClientManager
 from .integrations.ollama import OllamaClient, OllamaClientManager
 from .mcp_handler import MCPHandler
 
@@ -106,6 +107,12 @@ token_manager = TokenManager(
 if settings.llm_provider == "ollama":
     client_manager = OllamaClientManager(
         base_url=settings.ollama_base_url,
+        llm_model=settings.llm_model,
+        embedding_model=settings.embedding_model,
+    )
+elif settings.llm_provider == "requesty":
+    client_manager = RequestyClientManager(
+        base_url=settings.requesty_base_url,
         llm_model=settings.llm_model,
         embedding_model=settings.embedding_model,
     )
@@ -275,10 +282,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS configuration.
+#
+# Combining a wildcard origin ("*") with allow_credentials=True is invalid per
+# the CORS spec (browsers reject it) and, when Starlette reflects the request
+# Origin, it effectively lets any site make credentialed cross-origin calls.
+# To avoid that, credentials are only enabled when an explicit allow-list of
+# origins is configured via CORS_ALLOWED_ORIGINS (comma-separated). With the
+# default wildcard, credentials are disabled so cross-origin credential theft
+# is not possible.
+_cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "*").strip()
+if _cors_origins_env == "*":
+    _cors_allow_origins = ["*"]
+    _cors_allow_credentials = False
+else:
+    _cors_allow_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+    _cors_allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_allow_origins,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -307,6 +331,20 @@ async def register(request: RegisterRequest):
                 return RegisterResponse(
                     success=False,
                     error=f"Cannot connect to Ollama: {error}",
+                )
+        elif settings.llm_provider == "requesty":
+            # For Requesty, validate the API key
+            client = RequestyClient(
+                api_key=api_key,
+                base_url=settings.requesty_base_url,
+            )
+            is_valid, error = await client.verify_api_key()
+            await client.close()
+
+            if not is_valid:
+                return RegisterResponse(
+                    success=False,
+                    error=f"Invalid Requesty API key: {error}",
                 )
         else:
             # For OpenRouter, validate the API key

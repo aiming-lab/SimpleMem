@@ -92,11 +92,32 @@ python examples/api_server.py
 </details>
 
 <details>
+<summary>🔌 MCP Server (use Omni-SimpleMem from any MCP client)</summary>
+
+Expose multimodal memory to Claude Desktop or any MCP client over stdio:
+
+```bash
+python -m omni_mcp --data-dir ~/.omni_simplemem/mcp
+```
+
+Provides 12 tools — `omni_add_text` / `omni_add_image` / `omni_add_audio` /
+`omni_add_video` / `omni_add_document`, `omni_query` / `omni_answer`, plus
+namespace management. Media arguments accept local paths, `http(s)://`, Google
+Drive share links, `s3://` (S3 or MinIO) and `gs://`. Every tool takes an
+optional `namespace` giving each agent a fully isolated memory cluster.
+
+See [`omni_mcp/README.md`](omni_mcp/README.md) for setup, tool reference and
+configuration.
+
+</details>
+
+<details>
 <summary>📝 More examples</summary>
 
 - [`examples/quickstart.py`](examples/quickstart.py) — Basic text memory
 - [`examples/multimodal_memory.py`](examples/multimodal_memory.py) — Multimodal content
 - [`examples/api_server.py`](examples/api_server.py) — FastAPI REST server
+- [`omni_mcp/`](omni_mcp/) — MCP server (multimodal memory over stdio)
 
 </details>
 
