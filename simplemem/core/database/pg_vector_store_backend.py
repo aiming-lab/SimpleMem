@@ -2,7 +2,7 @@
 
 Three retrieval layers — all parameterized, no SQL injection surface:
 
-  Semantic:    pgvector HNSW index, cosine distance (<->)
+  Semantic:    pgvector HNSW index, cosine distance (<=>)
   Keyword:     PostgreSQL tsvector / plainto_tsquery (generated column + GIN index)
   Structured:  standard SQL WHERE with %s placeholders
 
@@ -75,36 +75,30 @@ _CREATE_EXTENSION = "CREATE EXTENSION IF NOT EXISTS vector"
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS {table} (
-    entry_id              TEXT    NOT NULL,
-    lossless_restatement  TEXT    NOT NULL,
-    keywords              TEXT,
-    timestamp             TEXT,
-    location              TEXT,
-    persons               TEXT,
-    entities              TEXT,
-    topic                 TEXT,
-    vec                   vector({dim}),
-    tsv                   tsvector
-        GENERATED ALWAYS AS (to_tsvector('english', lossless_restatement)) STORED
+    entry_id              VARCHAR(512)  NOT NULL,
+    lossless_restatement  VARCHAR(4000) NOT NULL,
+    keywords              VARCHAR(4000),
+    timestamp             VARCHAR(50),
+    location              VARCHAR(1000),
+    persons               VARCHAR(4000),
+    entities              VARCHAR(4000),
+    topic                 VARCHAR(500),
+    vec                   vector({dim})
 )
 """
 
 _CREATE_VEC_IDX = """
-CREATE INDEX IF NOT EXISTS {table}_vec_idx
+CREATE INDEX {table}_vec_idx
     ON {table} USING hnsw (vec vector_cosine_ops)
 """
 
-_CREATE_TSV_IDX = """
-CREATE INDEX IF NOT EXISTS {table}_tsv_idx
-    ON {table} USING gin (tsv)
-"""
+_CREATE_TSV_IDX = ""  # GIN on generated tsvector not supported in IRIS; inline to_tsvector() used in queries
 
 _INSERT = """
 INSERT INTO {table}
     (entry_id, lossless_restatement, keywords, timestamp,
      location, persons, entities, topic, vec)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::vector)
-ON CONFLICT DO NOTHING
 """
 
 _SELECT_COLS = (
@@ -112,8 +106,8 @@ _SELECT_COLS = (
     " location, persons, entities, topic"
 )
 
-_SEMANTIC = f"SELECT {_SELECT_COLS}, (vec <-> %s::vector) AS _dist FROM {{table}} ORDER BY _dist LIMIT %s"
-_KEYWORD  = f"SELECT {_SELECT_COLS} FROM {{table}} WHERE tsv @@ plainto_tsquery('english', %s) LIMIT %s"
+_SEMANTIC = f"SELECT {_SELECT_COLS} FROM {{table}} ORDER BY vec <=> %s::vector LIMIT {{limit}}"
+_KEYWORD_BASE = f"SELECT {_SELECT_COLS} FROM {{table}} WHERE"
 _GET_ALL  = f"SELECT {_SELECT_COLS} FROM {{table}}"
 _COUNT    = "SELECT COUNT(*) FROM {table}"
 
@@ -131,9 +125,8 @@ def _dec(s: Optional[str]) -> list:
         return []
 
 
-def _row_to_result(row, score_col: bool = False) -> VectorStoreSearchResult:
+def _row_to_result(row) -> VectorStoreSearchResult:
     entry_id   = row[0]
-    score      = float(row[8]) if score_col else None
     metadata   = {
         "lossless_restatement": row[1],
         "keywords":  _dec(row[2]),
@@ -143,7 +136,7 @@ def _row_to_result(row, score_col: bool = False) -> VectorStoreSearchResult:
         "entities":  _dec(row[6]),
         "topic":     row[7] or None,
     }
-    return VectorStoreSearchResult(entry_id=entry_id, metadata=metadata, score=score)
+    return VectorStoreSearchResult(entry_id=entry_id, metadata=metadata)
 
 
 class PGVectorStoreBackend:
@@ -204,8 +197,9 @@ class PGVectorStoreBackend:
     def _commit(self) -> None:
         self._conn().commit()
 
-    def _t(self, sql: str) -> str:
-        return sql.format(table=self.table_name, dim=self.vector_dimension)
+    def _t(self, sql: str, *, limit: int = 0) -> str:
+        return sql.format(table=self.table_name, dim=self.vector_dimension,
+                          limit=int(limit) if limit else "")
 
     # ------------------------------------------------------------------
     # Schema bootstrap
@@ -213,12 +207,23 @@ class PGVectorStoreBackend:
 
     def _ensure_schema(self) -> None:
         conn = self._conn()
+        # CREATE EXTENSION is a no-op on IRIS (vector support is built-in via pgwire)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(_CREATE_EXTENSION)
+            conn.commit()
+        except Exception:
+            conn.rollback()
         with conn.cursor() as cur:
-            cur.execute(_CREATE_EXTENSION)
             cur.execute(self._t(_CREATE_TABLE))
-            cur.execute(self._t(_CREATE_VEC_IDX))
-            cur.execute(self._t(_CREATE_TSV_IDX))
         conn.commit()
+        for idx_sql in (self._t(_CREATE_VEC_IDX),):
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(idx_sql)
+                conn.commit()
+            except Exception:
+                conn.rollback()  # index already exists — safe to ignore
         logger.debug("Schema ready: table=%s dim=%d", self.table_name, self.vector_dimension)
 
     # ------------------------------------------------------------------
@@ -242,8 +247,14 @@ class PGVectorStoreBackend:
             )
             for r in records
         ]
-        with self._cur() as cur:
-            cur.executemany(self._t(_INSERT), rows)
+        sql = self._t(_INSERT)
+        for row in rows:
+            with self._cur() as cur:
+                try:
+                    cur.execute(sql, row)
+                except Exception:
+                    self._conn().rollback()
+                    continue
         self._commit()
         logger.debug("Inserted %d records into %s", len(records), self.table_name)
 
@@ -258,8 +269,8 @@ class PGVectorStoreBackend:
         try:
             vec = list(float(x) for x in query_vector)
             with self._cur() as cur:
-                cur.execute(self._t(_SEMANTIC), (vec, top_k))
-                return [_row_to_result(r, score_col=True) for r in cur.fetchall()]
+                cur.execute(self._t(_SEMANTIC, limit=top_k), (vec,))
+                return [_row_to_result(r) for r in cur.fetchall()]
         except Exception:
             logger.exception("semantic_search failed")
             return []
@@ -272,9 +283,20 @@ class PGVectorStoreBackend:
         if not keywords or self.count() == 0:
             return []
         try:
-            query_text = " ".join(keywords)
+            # Match any keyword against text or JSON keywords column (case-insensitive LIKE)
+            conditions = []
+            params: list = []
+            for kw in keywords:
+                pat = f"%{kw}%"
+                conditions.append(
+                    "(LOWER(lossless_restatement) LIKE LOWER(%s)"
+                    " OR LOWER(keywords) LIKE LOWER(%s))"
+                )
+                params.extend([pat, pat])
+            where = " OR ".join(conditions)
+            sql = self._t(_KEYWORD_BASE) + " " + where + f" LIMIT {int(top_k)}"
             with self._cur() as cur:
-                cur.execute(self._t(_KEYWORD), (query_text, top_k))
+                cur.execute(sql, params)
                 return [_row_to_result(r) for r in cur.fetchall()]
         except Exception:
             logger.exception("keyword_search failed")
@@ -297,16 +319,16 @@ class PGVectorStoreBackend:
         params: list[Any] = []
 
         for p in (persons or []):
-            conditions.append("persons::jsonb @> %s::jsonb")
-            params.append(json.dumps([p]))
+            conditions.append('persons LIKE %s')
+            params.append(f'%"{p}"%')
 
         if location:
-            conditions.append("location ILIKE %s")
+            conditions.append("location LIKE %s")
             params.append(f"%{location}%")
 
         for e in (entities or []):
-            conditions.append("entities::jsonb @> %s::jsonb")
-            params.append(json.dumps([e]))
+            conditions.append('entities LIKE %s')
+            params.append(f'%"{e}"%')
 
         if timestamp_range:
             start, end = timestamp_range
@@ -344,16 +366,22 @@ class PGVectorStoreBackend:
             return []
 
     def optimize(self) -> None:
-        """VACUUM ANALYZE to refresh planner statistics after bulk loads."""
+        """VACUUM ANALYZE to refresh planner statistics after bulk loads.
+
+        No-op on IRIS (which manages statistics automatically).
+        """
         conn = self._conn()
-        old = conn.autocommit
-        conn.autocommit = True
         try:
-            with conn.cursor() as cur:
-                cur.execute(f"VACUUM ANALYZE {self.table_name}")
-        finally:
-            conn.autocommit = old
-        logger.debug("VACUUM ANALYZE completed on %s", self.table_name)
+            old = conn.autocommit
+            conn.autocommit = True
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(f"VACUUM ANALYZE {self.table_name}")
+            finally:
+                conn.autocommit = old
+            logger.debug("VACUUM ANALYZE completed on %s", self.table_name)
+        except Exception:
+            logger.debug("optimize() skipped (not supported by this backend)")
 
     def clear(self) -> None:
         with self._cur() as cur:

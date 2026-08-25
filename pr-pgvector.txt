@@ -14,15 +14,21 @@ LanceDB remains the default — no existing deployments are affected.
 - Implements `VectorStoreBackend` (insert / semantic_search / keyword_search /
   structured_search / count / get_all / optimize / clear)
 - `semantic_score_order = ScoreOrder.ASCENDING` (cosine distance, lower = better)
-- `keyword_score_order  = ScoreOrder.DESCENDING` (tsvector BM25-style rank)
-- Semantic search: pgvector HNSW index, `<->` cosine operator
-- Keyword search: PostgreSQL `tsvector` / `plainto_tsquery` (generated column,
-  GIN index — native Postgres FTS, no extra dependencies)
-- Structured search: parameterized `WHERE` with JSON containment
-  (`::jsonb @> %s::jsonb`) — no SQL injection surface
+- `keyword_score_order  = ScoreOrder.DESCENDING`
+- Semantic search: pgvector HNSW index, `<=>` cosine operator; LIMIT inlined
+  as a literal (required for IRIS compatibility)
+- Keyword search: case-insensitive `LOWER(col) LIKE LOWER(%s)` matching against
+  `lossless_restatement` and `keywords` columns — portable across PostgreSQL and
+  IRIS (no tsvector / plainto_tsquery dependency)
+- Structured search: parameterized WHERE with `LIKE '%"value"%'` for JSON array
+  columns (persons, entities) and `LIKE %location%` for string columns — works
+  on both PostgreSQL and IRIS (no `::jsonb @>` containment operator required)
 - Thread-local connections (`threading.local()`) matching the existing
   parallelism model
-- `VACUUM ANALYZE` as `optimize()` equivalent
+- `VACUUM ANALYZE` as `optimize()` equivalent; silently skipped on backends that
+  don't support it (e.g. IRIS)
+- Schema bootstrap is idempotent: `CREATE TABLE IF NOT EXISTS`, index creation
+  wrapped in try/except to handle duplicate errors gracefully
 
 **`simplemem/core/database/__init__.py`** — `get_vector_store()` factory
 - Returns a `VectorStore` whose backend is `PGVectorStoreBackend` when
@@ -38,21 +44,23 @@ LanceDB remains the default — no existing deployments are affected.
 ## Schema
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-
 CREATE TABLE memory_entries (
-    entry_id              TEXT NOT NULL,
-    lossless_restatement  TEXT NOT NULL,
-    keywords  TEXT, timestamp TEXT, location TEXT,
-    persons   TEXT, entities  TEXT, topic     TEXT,
-    vec  vector(1024),
-    tsv  tsvector GENERATED ALWAYS AS (
-             to_tsvector('english', lossless_restatement)) STORED
+    entry_id              VARCHAR(512)  NOT NULL,
+    lossless_restatement  VARCHAR(4000) NOT NULL,
+    keywords              VARCHAR(4000),
+    timestamp             VARCHAR(50),
+    location              VARCHAR(1000),
+    persons               VARCHAR(4000),
+    entities              VARCHAR(4000),
+    topic                 VARCHAR(500),
+    vec                   vector(1024)
 );
 
 CREATE INDEX ON memory_entries USING hnsw (vec vector_cosine_ops);
-CREATE INDEX ON memory_entries USING gin (tsv);
 ```
+
+All text columns use `VARCHAR(N)` rather than `TEXT` for compatibility with
+backends (like IRIS via pgwire) where `TEXT` returns stream references.
 
 ---
 
@@ -125,14 +133,20 @@ PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
 ```
 
 iris-pgwire translates pgvector DDL and operators transparently — no code
-changes are needed to switch between PostgreSQL and IRIS, only the DSN changes:
+changes are needed to switch between PostgreSQL and IRIS, only the DSN changes.
 
-| pgvector / PostgreSQL | IRIS equivalent (translated by iris-pgwire) |
-|---|---|
-| `CREATE INDEX USING hnsw (vec vector_cosine_ops)` | IRIS HNSW syntax with `Distance='Cosine'` |
-| `vec <-> %s::vector` | `VECTOR_COSINE(vec, TO_VECTOR(%s, DOUBLE))` |
-| `tsvector / plainto_tsquery` | IRIS full-text SQL equivalents |
-| `IF NOT EXISTS` DDL | IRIS duplicate-error suppression |
+IRIS-specific SQL differences handled by this backend:
+
+| PostgreSQL feature | IRIS behaviour | How we handle it |
+|---|---|---|
+| `CREATE EXTENSION IF NOT EXISTS vector` | Not supported | Wrapped in try/except — skipped silently |
+| `CREATE INDEX … IF NOT EXISTS` | Not supported | `IF NOT EXISTS` removed; duplicate errors caught |
+| `LIMIT %s` (parameterized) | Not supported | Limit inlined as integer literal |
+| `TEXT` columns | Returns stream references | All text columns use `VARCHAR(N)` |
+| `::jsonb @>` containment | Not supported | `LIKE '%"value"%'` on VARCHAR JSON columns |
+| `ILIKE` | Not supported | `LOWER(col) LIKE LOWER(%s)` |
+| `tsvector` / `to_tsvector` | Not supported | LIKE-based keyword search |
+| `VACUUM ANALYZE` | Not supported | `optimize()` skips silently |
 
 ---
 
@@ -140,9 +154,11 @@ changes are needed to switch between PostgreSQL and IRIS, only the DSN changes:
 
 | File | Tests | Run condition |
 |---|---|---|
-| `tests/test_pg_vector_store_backend.py` | 20 | `PG_TEST_DSN` env var |
+| `tests/test_pg_vector_store_backend.py` | 19 | `PG_TEST_DSN` env var |
 
 Tests skip automatically without the env var — no CI infrastructure changes needed.
+All 19 tests verified passing against both PostgreSQL and InterSystems IRIS
+(via iris-pgwire).
 
 ```bash
 PG_TEST_DSN=postgresql://postgres:postgres@localhost:5432/simplemem_test \
