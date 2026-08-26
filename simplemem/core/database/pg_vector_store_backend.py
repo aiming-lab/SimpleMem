@@ -3,7 +3,7 @@
 Three retrieval layers — all parameterized, no SQL injection surface:
 
   Semantic:    pgvector HNSW index, cosine distance (<=>)
-  Keyword:     PostgreSQL tsvector / plainto_tsquery (generated column + GIN index)
+  Keyword:     case-insensitive LIKE matching across text and keywords columns
   Structured:  standard SQL WHERE with %s placeholders
 
 Client installation
@@ -30,7 +30,7 @@ connects to IRIS without IRIS-specific drivers.
 
 Server-side setup (one time per IRIS instance):
 
-  1. Install iris-pgwire on the machine running IRIS:
+  1. Install iris-pgwire ≥ 1.7.1 on the machine running IRIS:
        pip install iris-pgwire
        # or via Docker: docker compose up -d  (see iris-pgwire README)
 
@@ -40,14 +40,14 @@ Server-side setup (one time per IRIS instance):
   3. Point PG_DSN at the pgwire endpoint:
        PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
 
-iris-pgwire translates pgvector DDL and operators transparently:
-  - CREATE INDEX USING hnsw (vec vector_cosine_ops)  →  IRIS HNSW syntax
-  - vec <-> %s::vector                               →  VECTOR_COSINE(vec, TO_VECTOR(%s, DOUBLE))
-  - tsvector / plainto_tsquery                       →  IRIS full-text SQL equivalents
-  - Generated columns (tsv tsvector GENERATED ALWAYS AS …) are emulated
-
 No code changes are needed to switch between PostgreSQL and IRIS — only
-the DSN changes.
+the DSN changes. iris-pgwire ≥ 1.7.1 translates pgvector DDL and operators
+transparently, including CREATE EXTENSION, ILIKE, ON CONFLICT, and LIMIT
+with parameterized values.
+
+One known limitation: persons/entities columns use LIKE '%"value"%' matching
+rather than jsonb containment operators, which are not yet supported by
+iris-pgwire.
 """
 from __future__ import annotations
 
@@ -92,13 +92,12 @@ CREATE INDEX {table}_vec_idx
     ON {table} USING hnsw (vec vector_cosine_ops)
 """
 
-_CREATE_TSV_IDX = ""  # GIN on generated tsvector not supported in IRIS; inline to_tsvector() used in queries
-
 _INSERT = """
 INSERT INTO {table}
     (entry_id, lossless_restatement, keywords, timestamp,
      location, persons, entities, topic, vec)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::vector)
+ON CONFLICT DO NOTHING
 """
 
 _SELECT_COLS = (
@@ -106,10 +105,10 @@ _SELECT_COLS = (
     " location, persons, entities, topic"
 )
 
-_SEMANTIC = f"SELECT {_SELECT_COLS} FROM {{table}} ORDER BY vec <=> %s::vector LIMIT {{limit}}"
+_SEMANTIC    = f"SELECT {_SELECT_COLS} FROM {{table}} ORDER BY vec <=> %s::vector LIMIT %s"
 _KEYWORD_BASE = f"SELECT {_SELECT_COLS} FROM {{table}} WHERE"
-_GET_ALL  = f"SELECT {_SELECT_COLS} FROM {{table}}"
-_COUNT    = "SELECT COUNT(*) FROM {table}"
+_GET_ALL     = f"SELECT {_SELECT_COLS} FROM {{table}}"
+_COUNT       = "SELECT COUNT(*) FROM {table}"
 
 
 def _enc(lst: list) -> str:
@@ -126,8 +125,8 @@ def _dec(s: Optional[str]) -> list:
 
 
 def _row_to_result(row) -> VectorStoreSearchResult:
-    entry_id   = row[0]
-    metadata   = {
+    entry_id = row[0]
+    metadata = {
         "lossless_restatement": row[1],
         "keywords":  _dec(row[2]),
         "timestamp": row[3] or None,
@@ -197,9 +196,8 @@ class PGVectorStoreBackend:
     def _commit(self) -> None:
         self._conn().commit()
 
-    def _t(self, sql: str, *, limit: int = 0) -> str:
-        return sql.format(table=self.table_name, dim=self.vector_dimension,
-                          limit=int(limit) if limit else "")
+    def _t(self, sql: str) -> str:
+        return sql.format(table=self.table_name, dim=self.vector_dimension)
 
     # ------------------------------------------------------------------
     # Schema bootstrap
@@ -207,23 +205,17 @@ class PGVectorStoreBackend:
 
     def _ensure_schema(self) -> None:
         conn = self._conn()
-        # CREATE EXTENSION is a no-op on IRIS (vector support is built-in via pgwire)
+        with conn.cursor() as cur:
+            cur.execute(_CREATE_EXTENSION)
+            cur.execute(self._t(_CREATE_TABLE))
+        conn.commit()
+        # CREATE INDEX … IF NOT EXISTS not supported by iris-pgwire; catch duplicates
         try:
             with conn.cursor() as cur:
-                cur.execute(_CREATE_EXTENSION)
+                cur.execute(self._t(_CREATE_VEC_IDX))
             conn.commit()
         except Exception:
             conn.rollback()
-        with conn.cursor() as cur:
-            cur.execute(self._t(_CREATE_TABLE))
-        conn.commit()
-        for idx_sql in (self._t(_CREATE_VEC_IDX),):
-            try:
-                with conn.cursor() as cur:
-                    cur.execute(idx_sql)
-                conn.commit()
-            except Exception:
-                conn.rollback()  # index already exists — safe to ignore
         logger.debug("Schema ready: table=%s dim=%d", self.table_name, self.vector_dimension)
 
     # ------------------------------------------------------------------
@@ -247,14 +239,8 @@ class PGVectorStoreBackend:
             )
             for r in records
         ]
-        sql = self._t(_INSERT)
-        for row in rows:
-            with self._cur() as cur:
-                try:
-                    cur.execute(sql, row)
-                except Exception:
-                    self._conn().rollback()
-                    continue
+        with self._cur() as cur:
+            cur.executemany(self._t(_INSERT), rows)
         self._commit()
         logger.debug("Inserted %d records into %s", len(records), self.table_name)
 
@@ -269,7 +255,7 @@ class PGVectorStoreBackend:
         try:
             vec = list(float(x) for x in query_vector)
             with self._cur() as cur:
-                cur.execute(self._t(_SEMANTIC, limit=top_k), (vec,))
+                cur.execute(self._t(_SEMANTIC), (vec, top_k))
                 return [_row_to_result(r) for r in cur.fetchall()]
         except Exception:
             logger.exception("semantic_search failed")
@@ -283,18 +269,17 @@ class PGVectorStoreBackend:
         if not keywords or self.count() == 0:
             return []
         try:
-            # Match any keyword against text or JSON keywords column (case-insensitive LIKE)
             conditions = []
             params: list = []
             for kw in keywords:
                 pat = f"%{kw}%"
                 conditions.append(
-                    "(LOWER(lossless_restatement) LIKE LOWER(%s)"
-                    " OR LOWER(keywords) LIKE LOWER(%s))"
+                    "(lossless_restatement ILIKE %s OR keywords ILIKE %s)"
                 )
                 params.extend([pat, pat])
             where = " OR ".join(conditions)
-            sql = self._t(_KEYWORD_BASE) + " " + where + f" LIMIT {int(top_k)}"
+            sql = self._t(_KEYWORD_BASE) + " " + where + " LIMIT %s"
+            params.append(top_k)
             with self._cur() as cur:
                 cur.execute(sql, params)
                 return [_row_to_result(r) for r in cur.fetchall()]
@@ -318,12 +303,15 @@ class PGVectorStoreBackend:
         conditions: list[str] = []
         params: list[Any] = []
 
+        # persons/entities are stored as JSON arrays in VARCHAR columns;
+        # jsonb containment (@>) is not yet supported by iris-pgwire, so we
+        # use LIKE '%"value"%' which works on both PostgreSQL and IRIS.
         for p in (persons or []):
             conditions.append('persons LIKE %s')
             params.append(f'%"{p}"%')
 
         if location:
-            conditions.append("location LIKE %s")
+            conditions.append("location ILIKE %s")
             params.append(f"%{location}%")
 
         for e in (entities or []):
@@ -338,7 +326,8 @@ class PGVectorStoreBackend:
         where = " OR ".join(f"({c})" for c in conditions)
         sql = f"SELECT {_SELECT_COLS} FROM {self.table_name} WHERE {where}"
         if top_k:
-            sql += f" LIMIT {int(top_k)}"
+            sql += " LIMIT %s"
+            params.append(top_k)
 
         try:
             with self._cur() as cur:
