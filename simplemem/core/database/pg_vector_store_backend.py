@@ -30,7 +30,7 @@ connects to IRIS without IRIS-specific drivers.
 
 Server-side setup (one time per IRIS instance):
 
-  1. Install iris-pgwire ≥ 1.7.1 on the machine running IRIS:
+  1. Install iris-pgwire ≥ 1.7.2 on the machine running IRIS:
        pip install iris-pgwire
        # or via Docker: docker compose up -d  (see iris-pgwire README)
 
@@ -41,13 +41,12 @@ Server-side setup (one time per IRIS instance):
        PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
 
 No code changes are needed to switch between PostgreSQL and IRIS — only
-the DSN changes. iris-pgwire ≥ 1.7.1 translates pgvector DDL and operators
-transparently, including CREATE EXTENSION, ILIKE, ON CONFLICT, and LIMIT
-with parameterized values.
+the DSN changes. iris-pgwire ≥ 1.7.2 translates pgvector DDL and operators
+transparently, including CREATE EXTENSION, ILIKE, ON CONFLICT, LIMIT with
+parameterized values, and jsonb @> containment.
 
-One known limitation: persons/entities columns use LIKE '%"value"%' matching
-rather than jsonb containment operators, which are not yet supported by
-iris-pgwire.
+One known limitation: CREATE INDEX IF NOT EXISTS is not yet supported by
+iris-pgwire — index creation uses a try/except to swallow duplicate errors.
 """
 from __future__ import annotations
 
@@ -303,20 +302,17 @@ class PGVectorStoreBackend:
         conditions: list[str] = []
         params: list[Any] = []
 
-        # persons/entities are stored as JSON arrays in VARCHAR columns;
-        # jsonb containment (@>) is not yet supported by iris-pgwire, so we
-        # use LIKE '%"value"%' which works on both PostgreSQL and IRIS.
         for p in (persons or []):
-            conditions.append('persons LIKE %s')
-            params.append(f'%"{p}"%')
+            conditions.append("persons::jsonb @> %s::jsonb")
+            params.append(json.dumps([p]))
 
         if location:
             conditions.append("location ILIKE %s")
             params.append(f"%{location}%")
 
         for e in (entities or []):
-            conditions.append('entities LIKE %s')
-            params.append(f'%"{e}"%')
+            conditions.append("entities::jsonb @> %s::jsonb")
+            params.append(json.dumps([e]))
 
         if timestamp_range:
             start, end = timestamp_range
