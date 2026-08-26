@@ -41,12 +41,9 @@ Server-side setup (one time per IRIS instance):
        PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
 
 No code changes are needed to switch between PostgreSQL and IRIS — only
-the DSN changes. iris-pgwire ≥ 1.7.2 translates pgvector DDL and operators
+the DSN changes. iris-pgwire ≥ 1.7.3 translates pgvector DDL and operators
 transparently, including CREATE EXTENSION, ILIKE, ON CONFLICT, LIMIT with
-parameterized values, and jsonb @> containment.
-
-One known limitation: CREATE INDEX IF NOT EXISTS is not yet supported by
-iris-pgwire — index creation uses a try/except to swallow duplicate errors.
+parameterized values, jsonb @> containment, and CREATE INDEX IF NOT EXISTS.
 """
 from __future__ import annotations
 
@@ -87,7 +84,7 @@ CREATE TABLE IF NOT EXISTS {table} (
 """
 
 _CREATE_VEC_IDX = """
-CREATE INDEX {table}_vec_idx
+CREATE INDEX IF NOT EXISTS {table}_vec_idx
     ON {table} USING hnsw (vec vector_cosine_ops)
 """
 
@@ -207,14 +204,8 @@ class PGVectorStoreBackend:
         with conn.cursor() as cur:
             cur.execute(_CREATE_EXTENSION)
             cur.execute(self._t(_CREATE_TABLE))
+            cur.execute(self._t(_CREATE_VEC_IDX))
         conn.commit()
-        # CREATE INDEX … IF NOT EXISTS not supported by iris-pgwire; catch duplicates
-        try:
-            with conn.cursor() as cur:
-                cur.execute(self._t(_CREATE_VEC_IDX))
-            conn.commit()
-        except Exception:
-            conn.rollback()
         logger.debug("Schema ready: table=%s dim=%d", self.table_name, self.vector_dimension)
 
     # ------------------------------------------------------------------
