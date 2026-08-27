@@ -15,20 +15,18 @@ LanceDB remains the default — no existing deployments are affected.
   structured_search / count / get_all / optimize / clear)
 - `semantic_score_order = ScoreOrder.ASCENDING` (cosine distance, lower = better)
 - `keyword_score_order  = ScoreOrder.DESCENDING`
-- Semantic search: pgvector HNSW index, `<=>` cosine operator; LIMIT inlined
-  as a literal (required for IRIS compatibility)
-- Keyword search: case-insensitive `LOWER(col) LIKE LOWER(%s)` matching against
-  `lossless_restatement` and `keywords` columns — portable across PostgreSQL and
-  IRIS (no tsvector / plainto_tsquery dependency)
-- Structured search: parameterized WHERE with `LIKE '%"value"%'` for JSON array
-  columns (persons, entities) and `LIKE %location%` for string columns — works
-  on both PostgreSQL and IRIS (no `::jsonb @>` containment operator required)
+- Semantic search: pgvector HNSW index, `<=>` cosine operator
+- Keyword search: case-insensitive `ILIKE` matching across `lossless_restatement`
+  and `keywords` columns
+- Structured search: parameterized `WHERE` with `::jsonb @> ::jsonb` for
+  persons/entities array columns, `ILIKE` for location, range comparisons for
+  timestamps — no SQL injection surface
 - Thread-local connections (`threading.local()`) matching the existing
   parallelism model
-- `VACUUM ANALYZE` as `optimize()` equivalent; silently skipped on backends that
-  don't support it (e.g. IRIS)
-- Schema bootstrap is idempotent: `CREATE TABLE IF NOT EXISTS`, index creation
-  wrapped in try/except to handle duplicate errors gracefully
+- `VACUUM ANALYZE` as `optimize()` equivalent; silently skipped on backends
+  that don't support it
+- Schema bootstrap is fully idempotent: `CREATE TABLE IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`
 
 **`simplemem/core/database/__init__.py`** — `get_vector_store()` factory
 - Returns a `VectorStore` whose backend is `PGVectorStoreBackend` when
@@ -44,6 +42,8 @@ LanceDB remains the default — no existing deployments are affected.
 ## Schema
 
 ```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE memory_entries (
     entry_id              VARCHAR(512)  NOT NULL,
     lossless_restatement  VARCHAR(4000) NOT NULL,
@@ -56,11 +56,11 @@ CREATE TABLE memory_entries (
     vec                   vector(1024)
 );
 
-CREATE INDEX ON memory_entries USING hnsw (vec vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS memory_entries_vec_idx
+    ON memory_entries USING hnsw (vec vector_cosine_ops);
 ```
 
-All text columns use `VARCHAR(N)` rather than `TEXT` for compatibility with
-backends (like IRIS via pgwire) where `TEXT` returns stream references.
+All text columns use `VARCHAR(N)` rather than `TEXT` for broad compatibility.
 
 ---
 
@@ -104,18 +104,15 @@ CREATE EXTENSION IF NOT EXISTS vector;  -- one-time setup
 ## Using InterSystems IRIS
 
 IRIS does not natively speak the PostgreSQL wire protocol, but
-[iris-pgwire](https://github.com/intersystems-community/iris-pgwire)
+[iris-pgwire](https://github.com/intersystems-community/iris-pgwire) ≥ 1.7.3
 adds a translation layer so any psycopg client — including this backend —
 connects to IRIS without IRIS-specific drivers.
 
 **Server-side setup (one time per IRIS instance):**
 
 ```bash
-# Install iris-pgwire on the machine running IRIS
-pip install iris-pgwire
-
-# Start the pgwire server (default port 5432)
-python -m iris_pgwire.server
+pip install "iris-pgwire>=1.7.3"
+python -m iris_pgwire.server   # default port 5432
 ```
 
 Or via Docker (see [iris-pgwire README](https://github.com/intersystems-community/iris-pgwire)):
@@ -132,21 +129,11 @@ STORAGE_BACKEND = "pgvector"
 PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
 ```
 
-iris-pgwire translates pgvector DDL and operators transparently — no code
-changes are needed to switch between PostgreSQL and IRIS, only the DSN changes.
-
-IRIS-specific SQL differences handled by this backend:
-
-| PostgreSQL feature | IRIS behaviour | How we handle it |
-|---|---|---|
-| `CREATE EXTENSION IF NOT EXISTS vector` | Not supported | Wrapped in try/except — skipped silently |
-| `CREATE INDEX … IF NOT EXISTS` | Not supported | `IF NOT EXISTS` removed; duplicate errors caught |
-| `LIMIT %s` (parameterized) | Not supported | Limit inlined as integer literal |
-| `TEXT` columns | Returns stream references | All text columns use `VARCHAR(N)` |
-| `::jsonb @>` containment | Not supported | `LIKE '%"value"%'` on VARCHAR JSON columns |
-| `ILIKE` | Not supported | `LOWER(col) LIKE LOWER(%s)` |
-| `tsvector` / `to_tsvector` | Not supported | LIKE-based keyword search |
-| `VACUUM ANALYZE` | Not supported | `optimize()` skips silently |
+No code changes are needed to switch between PostgreSQL and IRIS — only the
+DSN changes. iris-pgwire ≥ 1.7.3 translates all pgvector DDL and operators
+used by this backend transparently, including `CREATE EXTENSION IF NOT EXISTS`,
+`CREATE INDEX IF NOT EXISTS … USING hnsw`, `ILIKE`, `ON CONFLICT DO NOTHING`,
+parameterized `LIMIT`, and `::jsonb @>` containment.
 
 ---
 
@@ -158,7 +145,7 @@ IRIS-specific SQL differences handled by this backend:
 
 Tests skip automatically without the env var — no CI infrastructure changes needed.
 All 19 tests verified passing against both PostgreSQL and InterSystems IRIS
-(via iris-pgwire).
+(via iris-pgwire 1.7.3 on IRIS 2026.2).
 
 ```bash
 PG_TEST_DSN=postgresql://postgres:postgres@localhost:5432/simplemem_test \
