@@ -71,6 +71,11 @@ EXTRAS = {
         "rouge-score>=0.1.0",
         "nltk>=3.8.0",
     ],
+    # PostgreSQL + pgvector backend (IRIS + pgwire also satisfies this interface).
+    "pgvector": [
+        "psycopg[binary]>=3.1.0",
+        "pgvector>=0.3.0",
+    ],
     # Dev tooling (subset of 9686aa5 pyproject.toml 'dev' group).
     "dev": [
         "pytest>=7.0.0",

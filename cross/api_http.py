@@ -479,7 +479,7 @@ def create_app(
     """Create a complete FastAPI application with the cross-session router.
 
     If *orchestrator* is ``None`` a minimal ``SessionManager`` will be
-    constructed using default SQLite and LanceDB paths derived from
+    constructed using default SQLite and IRIS connection settings derived from
     *project*.
 
     Parameters
@@ -527,7 +527,7 @@ def create_app(
     if orchestrator is None:
         try:
             from cross.storage_sqlite import SQLiteStorage
-            from cross.storage_lancedb import CrossSessionVectorStore
+            from cross.storage_iris import CrossSessionVectorStore
             from cross.session_manager import SessionManager
 
             sqlite_storage = SQLiteStorage()

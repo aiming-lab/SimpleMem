@@ -144,7 +144,13 @@
 - [🚀 Quick Start](#-quick-start)
 - [🌟 Overview](#-overview)
 - [📦 Installation](#-installation)
+- [🗄️ Using InterSystems IRIS as the Vector Backend](#️-using-intersystems-iris-as-the-vector-backend)
 - [🐳 Docker](#-run-with-docker)
+- [🔌 Router Utilities](#-router-utilities)
+- [🔄 Cross-Session Memory](#-cross-session-memory-text-memory)
+- [🤖 Using SimpleMem with Claude + IRIS](#-using-simplemem-with-claude--iris)
+- [🔧 Adapting SimpleMem for Your IRIS Data](#-adapting-simplemem-for-your-iris-data)
+- [⚠️ IRIS Backend — Known Gotchas](#️-iris-backend--known-gotchas)
 - [🔌 MCP Server](#-mcp-server-text-memory)
 - [📊 Reproduce Paper Results](#-reproduce-paper-results)
 - [🗺️ Roadmap](#️-roadmap)
@@ -378,9 +384,93 @@ EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
 
 ---
 
+## 🗄️ Using InterSystems IRIS as the Vector Backend
+
+This fork replaces LanceDB with **[InterSystems IRIS](https://www.intersystems.com/products/intersystems-iris/)** as the vector store, using IRIS's native `VECTOR` SQL type and `HNSW` approximate nearest-neighbor index. All three retrieval layers (semantic, keyword, structured) run as pure SQL — no external vector database process required.
+
+> **Why IRIS?** In head-to-head benchmarks on a real agent memory workload, this IRIS + HNSW implementation matches or outperforms LanceDB + IVF above ~5k entries per user, delivers ~4× faster keyword search (native `$FIND` vs Tantivy), and adds full ACID transactions, SQL joins across memory and application data, and zero additional infrastructure when IRIS is already in your stack. See [benchmark results](#benchmark-iris-vs-lancedb) below.
+
+### Prerequisites
+
+- InterSystems IRIS 2025.1 or later (includes `VECTOR` type and `HNSW` index)
+- Python package: `intersystems-irispython`
+
+```bash
+pip install intersystems-irispython
+```
+
+**Get IRIS free:** [InterSystems IRIS Community Edition](https://www.intersystems.com/try-intersystems-iris-for-free/) — available as a Docker image or installer.
+
+```bash
+docker pull intersystemsdc/iris-community
+docker run -d --name iris -p 1972:1972 -p 52773:52773 intersystemsdc/iris-community
+```
+
+### Configuration
+
+```python
+# config.py — IRIS connection settings
+IRIS_HOSTNAME  = "localhost"
+IRIS_PORT      = 1972          # default superserver port
+IRIS_NAMESPACE = "USER"
+IRIS_USERNAME  = "_SYSTEM"
+IRIS_PASSWORD  = "SYS"
+
+MEMORY_TABLE_NAME = "memory_entries"
+```
+
+For IRIS Cloud or a managed instance, set `IRIS_HOSTNAME` to your endpoint and update credentials accordingly.
+
+### What the backend does automatically
+
+On first use, `VectorStore` and `CrossSessionVectorStore` each run:
+
+```sql
+CREATE TABLE memory_entries (
+    entry_id  VARCHAR(64),
+    text      VARCHAR(32000),
+    ...       -- keyword, timestamp, location, persons, entities, topic
+    vec       VECTOR(DOUBLE, 1024)
+)
+
+CREATE INDEX HNSWIdx ON TABLE memory_entries (vec)
+  AS HNSW(Distance='Cosine', M=16, efConstruction=64)
+```
+
+No manual schema setup needed. The HNSW index is created idempotently — safe to restart.
+
+### Benchmark: IRIS vs LanceDB
+
+All measurements on localhost, Apple M-series, Qwen3-Embedding-0.6B (1024-d vectors):
+
+**Vector search latency (1024-d, TOP 10):**
+
+| Corpus size | LanceDB plain | LanceDB + IVF | IRIS plain | IRIS + HNSW |
+|-------------|--------------|---------------|------------|-------------|
+| 500 entries | 2.5ms | 2.4ms | 2.3ms | 2.5ms |
+| 2,000 | 3.4ms | 3.3ms | 6.5ms | **3.9ms** |
+| 5,000 | 4.2ms | 4.1ms | 16ms | **4.7ms** |
+| 10,000 | 8.0ms | 7.8ms | 31ms | **5.5ms** |
+
+**Keyword and metadata search (25 entries, Recall@10):**
+
+| Search type | LanceDB | IRIS | Winner |
+|-------------|---------|------|--------|
+| Semantic | 1.000 | 1.000 | Tie |
+| Keyword (multi-word) | 1.000* | 1.000 | Tie |
+| Structured (persons) | 0.857 | 0.857 | Tie |
+| Keyword latency | ~7ms | **~1ms** | IRIS |
+| Structured latency | ~3ms | **~0.8ms** | IRIS |
+
+*LanceDB keyword search requires `pylance` installed and `create_fts_index()` called after every data load. Without this, it silently returns zero results. IRIS `$FIND` works out of the box.
+
+**Key finding:** An ISC customer implementing an IRIS Vector Search solution found that SimpleMem's SQL-first approach — combining `VECTOR_COSINE` semantic search with `$FIND` keyword scoring and structured SQL filters in a single connection — **outperformed their standalone IRIS Vector Search implementation**, which relied on a separate vector index layer without the hybrid retrieval pipeline.
+
+---
+
 ## 🐳 Run with Docker
 
-The **MCP Server** can be run in Docker for a consistent, isolated environment. Data (LanceDB and user DB) is persisted in a host volume.
+The **MCP Server** can be run in Docker for a consistent, isolated environment. Data is persisted in a host volume.
 
 ### Prerequisites
 
@@ -441,6 +531,537 @@ docker compose down                 # Stop and remove containers
 ```
 
 > 📖 For self-hosting the MCP server (Docker or bare metal), see [MCP Documentation](MCP/README.md).
+
+---
+
+## 🔌 Router Utilities
+
+The router uses a **registry-based factory** pattern — backends are lazily loaded only when requested, and dependencies are checked before instantiation.
+
+```python
+import simplemem_router as simplemem
+
+# List all registered modes
+simplemem.list_modes()
+# {'text': 'Single-modal text memory with semantic lossless compression',
+#  'omni': 'Multimodal memory — text, image, audio, video (Omni-SimpleMem)'}
+
+# Check if a mode's dependencies are satisfied
+simplemem.is_available("omni")  # True / False
+
+# Check which mode was auto-selected
+mem = simplemem.create()
+print(mem.mode)  # "auto" (pending), "text", or "omni"
+
+# Register a custom backend
+simplemem.register(
+    mode="my_backend",
+    module_path="my_package.memory",
+    class_name="MyMemorySystem",
+    description="Custom memory backend",
+    required_deps=["my_package"],
+)
+mem = simplemem.create(mode="my_backend")
+```
+
+---
+
+## ❓ Common Setup Issues & Troubleshooting
+
+If you encounter issues while setting up or running SimpleMem for the first time, check the following common cases:
+
+### 1️⃣ API Key Not Detected
+- Ensure your API key is correctly set in `config.py`
+- For OpenAI-compatible providers (Qwen, Azure, etc.), verify that `OPENAI_BASE_URL` is configured correctly
+- Restart your Python environment after updating the key
+
+### 2️⃣ Python Version Mismatch
+- SimpleMem requires **Python 3.10**
+- Check your version using:
+  ```bash
+  python --version
+  ```
+
+---
+
+## 🔄 Cross-Session Memory *(text memory)*
+
+**SimpleMem-Cross** extends SimpleMem with persistent cross-conversation memory capabilities. Agents can recall context, decisions, and observations from previous sessions — enabling continuity across conversations without manual context re-injection.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Session Lifecycle** | Full session management with start/record/stop/end lifecycle |
+| **Automatic Context Injection** | Token-budgeted context from previous sessions injected at session start |
+| **Event Collection** | Record messages, tool uses, file changes with automatic redaction |
+| **Observation Extraction** | Heuristic extraction of decisions, discoveries, and learnings |
+| **Provenance Tracking** | Every memory entry links back to source evidence |
+| **Consolidation** | Decay, merge, and prune old memories to maintain quality |
+
+### Quick Example
+
+```python
+from cross.orchestrator import create_orchestrator
+
+async def main():
+    orch = create_orchestrator(project="my-project")
+
+    # Start session — previous context is injected automatically
+    result = await orch.start_session(
+        content_session_id="session-001",
+        user_prompt="Continue building the REST API",
+    )
+    print(result["context"])  # Relevant context from previous sessions
+
+    # Record events during the session
+    await orch.record_message(result["memory_session_id"], "User asked about JWT")
+    await orch.record_tool_use(
+        result["memory_session_id"],
+        tool_name="read_file",
+        tool_input="auth/jwt.py",
+        tool_output="class JWTHandler: ...",
+    )
+
+    # Finalize — extracts observations, generates summary, stores memories
+    report = await orch.stop_session(result["memory_session_id"])
+    print(f"Stored {report.entries_stored} memory entries")
+
+    await orch.end_session(result["memory_session_id"])
+    orch.close()
+```
+
+### Architecture
+
+```
+Agent Frameworks (Claude Code / Cursor / custom)
+                    |
+     +--------------+--------------+
+     |                             |
+Hook/Lifecycle Adapter      HTTP/MCP API (FastAPI)
+     |                             |
+     +--------------+--------------+
+                    |
+           CrossMemOrchestrator
+                    |
+  +-----------------+------------------+
+  |                 |                  |
+Session Manager  Context Injector  Consolidation
+(SQLite)         (budgeted bundle) (decay/merge/prune)
+  |                 |                  |
+  +---------+-------+                  |
+            |                          |
+   Cross-Session Vector Store (LanceDB) <--+
+```
+
+### Module Reference
+
+| Module | Description |
+|--------|-------------|
+| `cross/types.py` | Pydantic models, enums, records |
+| `cross/storage_sqlite.py` | SQLite backend for sessions, events, observations (default) |
+| `cross/storage_iris_sql.py` | IRIS SQL backend — same interface as SQLiteStorage, zero SQLite dependency |
+| `cross/storage_factory.py` | `create_sql_storage(use_iris=False)` — selects backend |
+| `cross/storage_iris.py` | IRIS vector store for memory entries (HNSW index) |
+| `cross/hooks.py` | Lifecycle hooks (SessionStart/ToolUse/End) |
+| `cross/collectors.py` | Event collection with 3-tier redaction |
+| `cross/session_manager.py` | Full session lifecycle orchestration |
+| `cross/context_injector.py` | Token-budgeted context builder |
+| `cross/orchestrator.py` | Top-level facade and factory |
+| `cross/api_http.py` | FastAPI REST endpoints |
+| `cross/api_mcp.py` | MCP tool definitions |
+| `cross/consolidation.py` | Memory maintenance worker |
+
+> 📖 For detailed API documentation, see [Cross-Session README](cross/README.md)
+
+---
+
+## 🤖 Using SimpleMem with Claude + IRIS
+
+This fork is particularly well-suited for Claude deployments that already run InterSystems IRIS — a common configuration in healthcare, enterprise, and ISC customer environments.
+
+### Direct Python integration
+
+```python
+from main import SimpleMemSystem
+
+mem = SimpleMemSystem()
+
+# Store conversation turns
+mem.add_dialogue([
+    {"role": "user",    "content": "Schedule a demo with Acme Corp next Tuesday at 2pm"},
+    {"role": "assistant","content": "Done — I've noted the Acme Corp demo for Tuesday at 2pm."},
+])
+
+# Retrieve on next session
+answer = mem.ask("When is the Acme Corp demo?")
+print(answer)  # "Tuesday at 2pm"
+```
+
+### Cross-session memory: SQLite (default) or full IRIS
+
+By default, cross-session metadata (sessions, events, observations, summaries) is stored in a local SQLite file. For ISC customers who want **everything in IRIS** — no SQLite dependency, single namespace, single backup:
+
+```python
+from cross.orchestrator import create_orchestrator
+
+# Default: SQLite for metadata, IRIS for vectors
+orch = create_orchestrator("my-project")
+
+# Full IRIS: metadata AND vectors both in IRIS
+orch = create_orchestrator("my-project", use_iris_sql=True)
+```
+
+**Why full IRIS mode matters:** when `use_iris_sql=True`, all six metadata tables (`CrossMem_sessions`, `CrossMem_observations`, `CrossMem_session_summaries`, etc.) live in the same IRIS namespace as the vector store (`cross_memory_entries`). This enables SQL JOINs that are impossible when metadata is in SQLite:
+
+```sql
+-- Which memory entries came from sessions where the agent made a discovery?
+SELECT m.text, m.timestamp, o.title AS discovery
+FROM cross_memory_entries m
+JOIN CrossMem_memory_links l   ON l.memory_entry_id = m.entry_id
+JOIN CrossMem_observations o   ON o.obs_id = l.source_id
+JOIN CrossMem_sessions s       ON s.memory_session_id = o.memory_session_id
+WHERE o.type = 'discovery'
+  AND s.project = 'my-project'
+ORDER BY m.timestamp DESC
+
+-- What did the agent learn in sessions that produced high-scoring memories?
+SELECT s.started_at, s.user_prompt, ss.learned,
+       AVG(l.score) AS avg_memory_score
+FROM CrossMem_sessions s
+JOIN CrossMem_session_summaries ss ON ss.memory_session_id = s.memory_session_id
+JOIN CrossMem_memory_links l       ON l.memory_entry_id IN (
+    SELECT entry_id FROM cross_memory_entries WHERE tenant_id = s.tenant_id
+)
+WHERE s.project = 'my-project'
+GROUP BY s.id, s.started_at, s.user_prompt, ss.learned
+ORDER BY avg_memory_score DESC
+```
+
+These queries are also joinable against **your existing application tables** — patient records, orders, tickets, or any other data in the same IRIS namespace.
+
+### With Claude via MCP (self-hosted, IRIS backend)
+
+1. Start the MCP server pointing at your IRIS instance:
+
+```bash
+# Set IRIS connection in .env
+IRIS_HOSTNAME=your-iris-host
+IRIS_PORT=1972
+IRIS_USERNAME=_SYSTEM
+IRIS_PASSWORD=SYS
+
+cd MCP && python run.py
+```
+
+2. Add to your Claude Desktop `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "simplemem": {
+      "url": "http://localhost:8000/mcp",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
+    }
+  }
+}
+```
+
+3. Claude now has persistent memory across conversations, backed by IRIS.
+
+### Why this matters for ISC customers
+
+If you are building an AI agent solution on InterSystems IRIS, this architecture gives you:
+
+- **Persistent agent memory** stored directly in your existing IRIS namespace — no separate vector database process
+- **Hybrid retrieval** (semantic + keyword + structured) in a single SQL connection using `VECTOR_COSINE`, `$FIND`, and standard `WHERE` clauses
+- **Full SQL access** to memory data alongside your clinical, operational, or transactional data — join memory entries against patient records, orders, or any IRIS table
+- **Single namespace** (`use_iris_sql=True`) — vectors, session metadata, observations, and summaries all in one IRIS database, queryable together with your application data, no SQLite file to manage or back up
+- **ACID transactions** — memory writes participate in your existing IRIS transactions
+- **HNSW index** created automatically via `CREATE INDEX ... AS HNSW(Distance='Cosine')` — no manual schema setup
+
+An ISC customer is currently running Claude with this SimpleMem + IRIS SQL backend and finds it outperforming a parallel IRIS Vector Search implementation they are also evaluating.
+
+---
+
+## 🔧 Adapting SimpleMem for Your IRIS Data
+
+This section covers how to integrate SimpleMem with data you already have in IRIS, and how to understand the ingestion pipeline well enough to adapt it.
+
+### How ingestion works (not chunking)
+
+Most RAG systems split documents into fixed-size chunks and embed them directly. SimpleMem does not do this. Instead, `MemoryBuilder` sends each dialogue window to an LLM with a prompt that extracts structured `MemoryEntry` objects — each a fully self-contained, pronoun-resolved, timestamp-resolved fact. This is semantic compression, not chunking.
+
+```
+your text
+   │
+   ▼
+MemoryBuilder (sliding window, LLM extraction)
+   │
+   ▼
+[MemoryEntry, MemoryEntry, ...]   ← what gets embedded and stored
+   │
+   ▼
+VectorStore (IRIS: VECTOR_COSINE + $FIND + SQL WHERE)
+```
+
+Each `MemoryEntry` has:
+- `lossless_restatement` — the sentence that gets embedded (semantic layer)
+- `keywords` — for `$FIND` keyword search (lexical layer)
+- `persons`, `location`, `entities`, `timestamp` — for SQL filter search (symbolic layer)
+
+### Pattern 1 — Ingest your existing IRIS table
+
+If you have an existing table of text (notes, messages, documents), run it through the builder to populate SimpleMem's memory table:
+
+```python
+from main import SimpleMemSystem
+from models.memory_entry import Dialogue
+import intersystems_iris as ii
+
+mem = SimpleMemSystem()
+
+conn = ii.createConnection('localhost', 1972, 'USER', '_SYSTEM', 'SYS')
+cur = conn.cursor()
+cur.execute("SELECT id, note_text, created_at, author FROM MyApp.ClinicalNotes")
+
+for row in cur.fetchall():
+    dialogues = [Dialogue(
+        dialogue_id=row[0],
+        speaker=row[3] or "system",
+        content=row[1],
+        timestamp=row[2],
+    )]
+    mem.memory_builder._generate_memory_entries(dialogues)
+    # or: mem.add_dialogue(dialogues) to go through the full pipeline
+
+conn.close()
+```
+
+For large text (long documents, reports), split into passages first before creating `Dialogue` objects — the LLM context window is the limit, not a chunk size parameter. A passage of 500–1000 words per `Dialogue` is a reasonable target.
+
+### Pattern 2 — Query your existing table alongside SimpleMem memory
+
+Override `VectorStore` to search both your table and SimpleMem's memory table in one call. Your table needs a `VECTOR(DOUBLE, 1024)` column (add one with `ALTER TABLE`, populate it using your embedding model).
+
+```python
+from database.vector_store import VectorStore
+from models.memory_entry import MemoryEntry
+from typing import List, Optional
+import json
+
+class HybridCustomerStore(VectorStore):
+    def __init__(self, customer_table: str, **kwargs):
+        super().__init__(**kwargs)
+        self._customer_table = customer_table
+
+    def semantic_search(self, query: str, top_k: int = 5) -> List[MemoryEntry]:
+        simplemem_results = super().semantic_search(query, top_k)
+        customer_results  = self._search_customer_table(query, top_k)
+        seen = {e.entry_id for e in simplemem_results}
+        merged = simplemem_results + [e for e in customer_results if e.entry_id not in seen]
+        return merged[:top_k]
+
+    def _search_customer_table(self, query: str, top_k: int) -> List[MemoryEntry]:
+        qvec = self.embedding_model.encode_single(query, is_query=True)
+        cur = self._cur()
+        try:
+            cur.execute(
+                f"SELECT TOP {top_k} id, note_text, "
+                f"VECTOR_COSINE(embedding, TO_VECTOR(?, DOUBLE, {self._dim})) s "
+                f"FROM {self._customer_table} ORDER BY s DESC",
+                [json.dumps(qvec.tolist())]
+            )
+            return [
+                MemoryEntry(entry_id=str(r[0]), lossless_restatement=r[1])
+                for r in cur.fetchall()
+            ]
+        finally:
+            cur.close()
+```
+
+Then wire it into the system:
+
+```python
+from main import SimpleMemSystem
+
+mem = SimpleMemSystem()
+mem.memory_builder.vector_store = HybridCustomerStore(
+    customer_table="MyApp.ClinicalNotes",
+    embedding_model=mem.memory_builder.vector_store.embedding_model,
+    table_name="memory_entries",
+)
+mem.retriever.vector_store = mem.memory_builder.vector_store
+```
+
+### Pattern 3 — Use SimpleMem retrieval against a pure SQL table (no pipeline)
+
+If you only want the hybrid retrieval layer (semantic + keyword + structured) against your own table, skip `MemoryBuilder` entirely and use `VectorStore` directly:
+
+```python
+from database.vector_store import VectorStore
+from utils.embedding import EmbeddingModel
+
+store = VectorStore(table_name="MyApp.AgentMemory")
+
+# Add entries manually (bypassing LLM compression)
+from models.memory_entry import MemoryEntry
+store.add_entries([
+    MemoryEntry(
+        lossless_restatement="Patient John Smith has a penicillin allergy documented on 2025-03-14.",
+        keywords=["penicillin", "allergy", "John Smith"],
+        persons=["John Smith"],
+        entities=["penicillin"],
+        timestamp="2025-03-14T00:00:00",
+    )
+])
+
+# Retrieve
+results = store.semantic_search("does the patient have any drug allergies?")
+results = store.keyword_search(["penicillin", "allergy"])
+results = store.structured_search(persons=["John Smith"])
+```
+
+### Adding vector embeddings to an existing IRIS table
+
+```sql
+-- Add embedding column to your existing table
+ALTER TABLE MyApp.ClinicalNotes ADD COLUMN embedding VECTOR(DOUBLE, 1024)
+
+-- Add HNSW index for fast search
+CREATE INDEX EmbeddingIdx ON TABLE MyApp.ClinicalNotes (embedding)
+  AS HNSW(Distance='Cosine', M=16, efConstruction=64)
+```
+
+Then populate with Python:
+
+```python
+from utils.embedding import EmbeddingModel
+import intersystems_iris as ii, json
+
+emb = EmbeddingModel()
+conn = ii.createConnection('localhost', 1972, 'USER', '_SYSTEM', 'SYS')
+cur = conn.cursor()
+
+cur.execute("SELECT id, note_text FROM MyApp.ClinicalNotes WHERE embedding IS NULL")
+rows = cur.fetchall()
+
+texts = [r[1] for r in rows]
+vectors = emb.encode_documents(texts)
+
+for (row_id, _), vec in zip(rows, vectors):
+    cur.execute(
+        f"UPDATE MyApp.ClinicalNotes SET embedding = TO_VECTOR(?, DOUBLE, 1024) WHERE id = ?",
+        [json.dumps(vec.tolist()), row_id]
+    )
+conn.commit()
+conn.close()
+```
+
+### Configuration reference for this fork
+
+```python
+# config.py — all settings relevant to the IRIS backend
+
+# IRIS connection
+IRIS_HOSTNAME  = "localhost"
+IRIS_PORT      = 1972
+IRIS_NAMESPACE = "USER"
+IRIS_USERNAME  = "_SYSTEM"
+IRIS_PASSWORD  = "SYS"
+
+# Memory table (created automatically on first use)
+MEMORY_TABLE_NAME = "memory_entries"
+
+# Embedding model — must match dimension used when the table was created
+# Changing this after data is loaded requires rebuilding the table
+EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"  # 1024-d
+
+# Retrieval layer top-k values
+SEMANTIC_TOP_K   = 5
+KEYWORD_TOP_K    = 3
+STRUCTURED_TOP_K = 5
+
+# Memory builder sliding window
+WINDOW_SIZE  = 10   # dialogues per LLM extraction call
+OVERLAP_SIZE = 2    # dialogues carried forward for continuity context
+```
+
+> **Embedding dimension lock-in**: once a table is created with a given dimension, all vectors stored in it must match. If you change `EMBEDDING_MODEL` to a model with a different output dimension, drop and recreate the table. The HNSW index is recreated automatically.
+
+---
+
+## ⚠️ IRIS Backend — Known Gotchas
+
+### Connection and threading
+
+**Each thread gets its own IRIS connection** (thread-local). `VectorStore` and `CrossSessionVectorStore` both use `threading.local()` — a new connection is opened the first time any method is called from a given thread. This means:
+
+- `enable_parallel_retrieval=True` **works and gives true DB parallelism** — each worker thread opens its own connection and queries execute concurrently. This is a significant difference from LanceDB, which used a single shared connection with a lock.
+- `enable_parallel_processing=True` **works** — LLM extraction runs in parallel, then `add_entries()` is called once on the main thread. No connection contention.
+- `store.close()` only closes the calling thread's connection. In a server/long-running process, connections accumulate (one per thread). For FastAPI/async use, call `store.close()` in a thread cleanup hook, or set `IRIS_MAX_CONNECTIONS` in your IRIS instance config to cap the pool.
+
+### `TOP` clause is literal, not parameterized
+
+IRIS SQL requires `TOP N` to be a literal integer in the query string. Parameterized `TOP ?` raises `SQLCODE -1`. This is handled internally — `top_k` values are formatted into the SQL string, not bound as parameters. **Implication**: if you write custom queries against the IRIS tables, don't try to bind `TOP ?`.
+
+### `$FIND` is substring, not word-boundary
+
+`$FIND(text, 'bob')` matches `"bobby"` and `"elbow"`. For conversational memory entries this is usually acceptable. If you need exact word matching, wrap the keyword search with a post-filter in Python, or use `%MATCHES '*\bbob\b*'` syntax (IRIS pattern matching supports word boundaries via `\b` in some contexts).
+
+### HNSW index requires `TOP` + `ORDER BY DESC`
+
+The HNSW index is **only used** when the query includes both a `TOP N` clause and `ORDER BY ... DESC` on the vector distance function. A query without `TOP` will fall back to a full scan even if the HNSW index exists. All three search methods in `VectorStore` already follow this pattern correctly.
+
+### HNSW index versioning
+
+IRIS documentation notes that future versions may change the internal HNSW storage format, requiring an index rebuild. If after an IRIS upgrade you see:
+
+```
+HNSW index HNSWIdx was built using an unsupported HNSW storage version
+```
+
+Drop and recreate: `DROP INDEX HNSWIdx ON TABLE memory_entries` then restart SimpleMem (the index is recreated automatically by `_ensure_table()`).
+
+### Embedding dimension lock-in (HNSW is strict)
+
+The HNSW index is tied to the vector dimension at creation time. Changing `EMBEDDING_MODEL` to one with a different output dimension requires:
+
+```sql
+DROP TABLE memory_entries    -- or cross_memory_entries
+```
+
+Then restart SimpleMem — the table and index are recreated with the new dimension. All previously stored memories are lost on drop.
+
+### Parallel mode — `enable_parallel_processing` vs `enable_parallel_retrieval`
+
+| Mode | What's parallel | DB impact |
+|---|---|---|
+| `enable_parallel_processing=True` | LLM extraction calls | Single `add_entries()` call after all workers finish. Zero contention. |
+| `enable_parallel_retrieval=True` | Search query calls | Each thread opens its own IRIS connection. True concurrent DB reads. Works correctly. |
+| Both enabled | All of the above | Works. Monitor IRIS connection count with `SELECT COUNT(*) FROM %SYS.ProcessQuery WHERE ClientName LIKE '%iris%'`. |
+
+### `OmniSimpleMem` and `SKILL/` are unaffected
+
+`OmniSimpleMem/` uses its own internal vector stores (FAISS + custom storage). It does not go through `database/vector_store.py`. The IRIS backend change has no effect on `mode="omni"`.
+
+`SKILL/simplemem-skill/` is a self-contained distribution copy that still uses LanceDB. It is intentionally not updated — it ships as a standalone package for Claude Skills and manages its own dependencies.
+
+### Cross-session memory — SQLite vs IRIS SQL backend
+
+By default, `create_orchestrator` uses SQLite for session/event/observation metadata. To run everything in IRIS:
+
+```python
+orch = create_orchestrator("my-project", use_iris_sql=True)
+```
+
+The `use_iris_sql=True` flag switches the metadata backend to `IRISSQLStorage` — six `CrossMem_*` tables created automatically in your IRIS namespace. The vector store (`cross_memory_entries`) always uses IRIS regardless of this flag.
+
+SQLite is the better default for local or single-machine deployments. Full IRIS mode is better when you want a single namespace, single backup, and the ability to JOIN memory data with your application tables.
+
+### Cross-session memory — `lancedb_path` parameter is deprecated
+
+`create_orchestrator(project=..., lancedb_path=...)` still accepts `lancedb_path` for backward compatibility but **ignores it**. Use `iris_table="my_table_name"` to override the default `cross_memory_entries` table name.
 
 ---
 

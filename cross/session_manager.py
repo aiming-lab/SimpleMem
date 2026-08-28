@@ -19,7 +19,10 @@ from cross.types import (
     SessionSummary,
 )
 from cross.storage_sqlite import SQLiteStorage
-from cross.storage_lancedb import CrossSessionVectorStore
+try:
+    from cross.storage_iris import CrossSessionVectorStore
+except ImportError:
+    CrossSessionVectorStore = None  # type: ignore[assignment,misc]
 
 try:
     from cross.collectors import EventCollector, ObservationExtractor
@@ -184,7 +187,7 @@ class SessionManager:
     sqlite_storage:
         The relational backend for sessions, events, observations, summaries.
     vector_store:
-        The LanceDB-backed vector store for cross-session memory entries.
+        The IRIS-backed vector store for cross-session memory entries.
     simplemem:
         Optional reference to a ``SimpleMemSystem`` instance (duck-typed).
         When provided, finalization will also run the SimpleMem 3-stage

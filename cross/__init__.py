@@ -38,7 +38,26 @@ from cross.types import (
 
 # -- Storage -------------------------------------------------------------------
 from cross.storage_sqlite import SQLiteStorage
-from cross.storage_lancedb import CrossSessionVectorStore
+from cross.storage_factory import create_sql_storage, SqlStorage
+
+# IRIS and PG backends are optional — defer import so missing deps don't break
+# environments that only use SQLite or the PG backend.
+try:
+    from cross.storage_iris_sql import IRISSQLStorage
+except ImportError:
+    IRISSQLStorage = None  # type: ignore[assignment,misc]
+
+try:
+    from cross.storage_iris import CrossSessionVectorStore
+except ImportError:
+    CrossSessionVectorStore = None  # type: ignore[assignment,misc]
+
+try:
+    from cross.storage_pg import PGCrossVectorStore
+    from cross.storage_pg_sql import PGSQLStorage
+except ImportError:
+    PGCrossVectorStore = None  # type: ignore[assignment,misc]
+    PGSQLStorage = None  # type: ignore[assignment,misc]
 
 # -- Core logic ----------------------------------------------------------------
 from cross.collectors import EventCollector, ObservationExtractor, RedactionFilter
@@ -78,7 +97,12 @@ __all__ = [
     "SessionSummary",
     # Storage
     "SQLiteStorage",
+    "IRISSQLStorage",
+    "create_sql_storage",
+    "SqlStorage",
     "CrossSessionVectorStore",
+    "PGCrossVectorStore",
+    "PGSQLStorage",
     # Core logic
     "EventCollector",
     "ObservationExtractor",

@@ -28,6 +28,8 @@ _DEFAULTS = {
     "SEMANTIC_TOP_K": 25,
     "KEYWORD_TOP_K": 5,
     "STRUCTURED_TOP_K": 5,
+    "STORAGE_BACKEND": "lancedb",   # "lancedb" | "pgvector"
+    "PG_DSN": "",                   # e.g. postgresql://user:pass@localhost/dbname
     "LANCEDB_PATH": "./lancedb_data",
     "MEMORY_TABLE_NAME": "memory_entries",
     "ENABLE_PARALLEL_PROCESSING": True,

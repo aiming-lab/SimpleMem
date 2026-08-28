@@ -27,7 +27,10 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from cross.storage_lancedb import CrossSessionVectorStore
+try:
+    from cross.storage_iris import CrossSessionVectorStore
+except ImportError:
+    CrossSessionVectorStore = None  # type: ignore[assignment,misc]
 from cross.storage_sqlite import SQLiteStorage
 from cross.types import ConsolidationRun
 
@@ -374,7 +377,7 @@ def run_consolidation(
 
     Args:
         sqlite_storage: SQLite backend for recording consolidation metadata.
-        vector_store: LanceDB vector store with cross-session entries.
+        vector_store: IRIS vector store with cross-session entries.
         tenant_id: Tenant whose entries should be consolidated.
         policy: Optional override for the default :class:`ConsolidationPolicy`.
 

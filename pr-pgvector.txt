@@ -1,0 +1,157 @@
+## Summary
+
+Adds a PostgreSQL + pgvector backend implementing the `VectorStoreBackend`
+protocol introduced in #76, following the same pattern as the Milvus backend
+in #77.
+
+LanceDB remains the default — no existing deployments are affected.
+
+---
+
+## What's new
+
+**`simplemem/core/database/pg_vector_store_backend.py`** — `PGVectorStoreBackend`
+- Implements `VectorStoreBackend` (insert / semantic_search / keyword_search /
+  structured_search / count / get_all / optimize / clear)
+- `semantic_score_order = ScoreOrder.ASCENDING` (cosine distance, lower = better)
+- `keyword_score_order  = ScoreOrder.DESCENDING`
+- Semantic search: pgvector HNSW index, `<=>` cosine operator
+- Keyword search: case-insensitive `ILIKE` matching across `lossless_restatement`
+  and `keywords` columns
+- Structured search: parameterized `WHERE` with `::jsonb @> ::jsonb` for
+  persons/entities array columns, `ILIKE` for location, range comparisons for
+  timestamps — no SQL injection surface
+- Thread-local connections (`threading.local()`) matching the existing
+  parallelism model
+- `VACUUM ANALYZE` as `optimize()` equivalent; silently skipped on backends
+  that don't support it
+- Schema bootstrap is fully idempotent: `CREATE TABLE IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`
+
+**`simplemem/core/database/__init__.py`** — `get_vector_store()` factory
+- Returns a `VectorStore` whose backend is `PGVectorStoreBackend` when
+  `STORAGE_BACKEND=pgvector` (or `backend='pgvector'` passed directly),
+  otherwise falls back to the default `LanceDBVectorStoreBackend`
+- `PGVectorStoreBackend` lazily exported (no hard psycopg import at module load)
+
+**`simplemem/core/settings.py`**
+- Two new settings: `STORAGE_BACKEND` (default `"lancedb"`) and `PG_DSN`
+
+---
+
+## Schema
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE memory_entries (
+    entry_id              VARCHAR(512)  NOT NULL,
+    lossless_restatement  VARCHAR(4000) NOT NULL,
+    keywords              VARCHAR(4000),
+    timestamp             VARCHAR(50),
+    location              VARCHAR(1000),
+    persons               VARCHAR(4000),
+    entities              VARCHAR(4000),
+    topic                 VARCHAR(500),
+    vec                   vector(1024)
+);
+
+CREATE INDEX IF NOT EXISTS memory_entries_vec_idx
+    ON memory_entries USING hnsw (vec vector_cosine_ops);
+```
+
+All text columns use `VARCHAR(N)` rather than `TEXT` for broad compatibility.
+
+---
+
+## Opting in
+
+```python
+# config.py
+STORAGE_BACKEND = "pgvector"
+PG_DSN = "postgresql://user:pass@localhost:5432/mydb"
+```
+
+Or via environment variables:
+
+```bash
+export STORAGE_BACKEND=pgvector
+export PG_DSN=postgresql://user:pass@localhost:5432/mydb
+```
+
+---
+
+## Client installation
+
+```bash
+pip install "psycopg[binary]" pgvector
+# or:
+pip install simplemem[pgvector]
+```
+
+---
+
+## Using PostgreSQL
+
+Any PostgreSQL ≥ 15 instance with the pgvector extension works:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;  -- one-time setup
+```
+
+---
+
+## Using InterSystems IRIS
+
+IRIS does not natively speak the PostgreSQL wire protocol, but
+[iris-pgwire](https://github.com/intersystems-community/iris-pgwire) ≥ 1.7.3
+adds a translation layer so any psycopg client — including this backend —
+connects to IRIS without IRIS-specific drivers.
+
+**Server-side setup (one time per IRIS instance):**
+
+```bash
+pip install "iris-pgwire>=1.7.3"
+python -m iris_pgwire.server   # default port 5432
+```
+
+Or via Docker (see [iris-pgwire README](https://github.com/intersystems-community/iris-pgwire)):
+
+```bash
+docker compose up -d
+```
+
+**Then point PG_DSN at the pgwire endpoint:**
+
+```python
+# config.py
+STORAGE_BACKEND = "pgvector"
+PG_DSN = "postgresql://_SYSTEM:SYS@localhost:5432/USER"
+```
+
+No code changes are needed to switch between PostgreSQL and IRIS — only the
+DSN changes. iris-pgwire ≥ 1.7.3 translates all pgvector DDL and operators
+used by this backend transparently, including `CREATE EXTENSION IF NOT EXISTS`,
+`CREATE INDEX IF NOT EXISTS … USING hnsw`, `ILIKE`, `ON CONFLICT DO NOTHING`,
+parameterized `LIMIT`, and `::jsonb @>` containment.
+
+---
+
+## Tests
+
+| File | Tests | Run condition |
+|---|---|---|
+| `tests/test_pg_vector_store_backend.py` | 19 | `PG_TEST_DSN` env var |
+
+Tests skip automatically without the env var — no CI infrastructure changes needed.
+All 19 tests verified passing against both PostgreSQL and InterSystems IRIS
+(via iris-pgwire 1.7.3 on IRIS 2026.2).
+
+```bash
+PG_TEST_DSN=postgresql://postgres:postgres@localhost:5432/simplemem_test \
+  pytest tests/test_pg_vector_store_backend.py -v
+```
+
+Covers: insert, semantic/keyword/structured search, score ordering, empty-input
+guards, SQL injection resistance, optimize, clear + reinsert, and end-to-end
+via `VectorStore` + `get_vector_store()`.
