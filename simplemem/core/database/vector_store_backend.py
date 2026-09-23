@@ -139,7 +139,7 @@ class LanceDBVectorStoreBackend:
             ]
         )
 
-        if self.table_name not in self.db.table_names():
+        if self.table_name not in self.db:
             self.table = self.db.create_table(self.table_name, schema=schema)
             print(f"Created new table: {self.table_name}")
         else:
