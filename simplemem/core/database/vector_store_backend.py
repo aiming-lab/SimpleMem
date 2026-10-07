@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 import os
 import re
+import threading
 from typing import Any, Dict, List, Optional, Protocol, Sequence
 
 import lancedb
@@ -108,6 +109,7 @@ class LanceDBVectorStoreBackend:
         self.table_name = table_name
         self.vector_dimension = vector_dimension
         self._fts_initialized = False
+        self._fts_lock = threading.Lock()
         self._is_cloud_storage = self.db_path.startswith(("gs://", "s3://", "az://"))
 
         if self._is_cloud_storage:
@@ -147,6 +149,16 @@ class LanceDBVectorStoreBackend:
             print(f"Opened existing table: {self.table_name}")
 
     def _init_fts_index(self) -> None:
+        """Build the full text index if it is missing or out of date.
+
+        The Tantivy index used for local storage is a snapshot, so rows added
+        after it was built are invisible to ``keyword_search``. ``insert``
+        clears ``_fts_initialized`` for that mode and the index is rebuilt on
+        the next keyword search. The native index used for cloud storage also
+        scans rows added after it was built, so it is only created once.
+
+        Callers must hold ``_fts_lock``.
+        """
         if self._fts_initialized:
             return
 
@@ -182,8 +194,11 @@ class LanceDBVectorStoreBackend:
             }
             for record in records
         ]
-        self.table.add(rows)
-        self._init_fts_index()
+        with self._fts_lock:
+            self.table.add(rows)
+            if not self._is_cloud_storage:
+                # The Tantivy index does not cover the rows just added.
+                self._fts_initialized = False
 
     def semantic_search(
         self,
@@ -214,10 +229,12 @@ class LanceDBVectorStoreBackend:
             return []
 
         query = " ".join(keywords)
-        results = self._rows_to_results(
-            self.table.search(query).limit(top_k).to_list(),
-            score_field="_score",
-        )
+        # Hold the lock while querying so that concurrent searches neither
+        # rebuild the index twice nor read it while it is being rewritten.
+        with self._fts_lock:
+            self._init_fts_index()
+            rows = self.table.search(query).limit(top_k).to_list()
+        results = self._rows_to_results(rows, score_field="_score")
         results.sort(key=lambda result: result.score, reverse=True)
         return results
 
@@ -265,9 +282,10 @@ class LanceDBVectorStoreBackend:
         self.table.optimize()
 
     def clear(self) -> None:
-        self.db.drop_table(self.table_name)
-        self._fts_initialized = False
-        self._init_table()
+        with self._fts_lock:
+            self.db.drop_table(self.table_name)
+            self._fts_initialized = False
+            self._init_table()
 
     @classmethod
     def _build_filter_expression(cls, filters: Dict[str, Any]) -> str:

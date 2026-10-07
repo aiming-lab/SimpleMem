@@ -370,6 +370,82 @@ def test_lancedb_backend_preserves_all_three_public_retrieval_paths(lancedb_stor
     )
 
 
+def _add_entry(store, entry_id, text):
+    store.add_entries(
+        [MemoryEntry(entry_id=entry_id, lossless_restatement=text, topic=entry_id)]
+    )
+
+
+def test_lancedb_keyword_search_sees_entries_from_later_inserts(lancedb_store):
+    assert [e.entry_id for e in lancedb_store.keyword_search(["Apollo"], 5)] == [
+        "apollo"
+    ]
+
+    _add_entry(lancedb_store, "zebra", "Dana photographed a zebra in Kenya.")
+    _add_entry(lancedb_store, "tulip", "Erin planted tulip bulbs in the garden.")
+
+    assert lancedb_store.backend.count() == 5
+    assert [e.entry_id for e in lancedb_store.keyword_search(["zebra"], 5)] == [
+        "zebra"
+    ]
+    assert [e.entry_id for e in lancedb_store.keyword_search(["tulip"], 5)] == [
+        "tulip"
+    ]
+    # Entries from the first batch stay searchable.
+    assert [e.entry_id for e in lancedb_store.keyword_search(["Apollo"], 5)] == [
+        "apollo"
+    ]
+
+
+def test_lancedb_keyword_search_after_reopening_a_table(lancedb_store):
+    _add_entry(lancedb_store, "zebra", "Dana photographed a zebra in Kenya.")
+
+    reopened = VectorStore(
+        db_path=lancedb_store.backend.db_path,
+        table_name="entries",
+        embedding_model=DeterministicEmbedder(),
+    )
+
+    assert [e.entry_id for e in reopened.keyword_search(["zebra"], 5)] == ["zebra"]
+
+
+def test_lancedb_keyword_search_after_clear(lancedb_store):
+    assert lancedb_store.keyword_search(["Apollo"], 5)
+
+    lancedb_store.clear()
+    _add_entry(lancedb_store, "zebra", "Dana photographed a zebra in Kenya.")
+
+    assert [e.entry_id for e in lancedb_store.keyword_search(["zebra"], 5)] == [
+        "zebra"
+    ]
+    assert lancedb_store.keyword_search(["Apollo"], 5) == []
+
+
+def test_lancedb_fts_index_is_rebuilt_lazily(lancedb_store):
+    backend = lancedb_store.backend
+    builds = []
+    original = backend.table.create_fts_index
+
+    def tracking_create_fts_index(*args, **kwargs):
+        builds.append(kwargs.get("use_tantivy"))
+        return original(*args, **kwargs)
+
+    backend.table.create_fts_index = tracking_create_fts_index
+
+    # Several inserts in a row do not rebuild the index until it is queried.
+    _add_entry(lancedb_store, "zebra", "Dana photographed a zebra in Kenya.")
+    _add_entry(lancedb_store, "tulip", "Erin planted tulip bulbs in the garden.")
+    assert builds == []
+
+    lancedb_store.keyword_search(["zebra"], 5)
+    lancedb_store.keyword_search(["tulip"], 5)
+    assert builds == [True]
+
+    _add_entry(lancedb_store, "otter", "Frank saw an otter by the river.")
+    lancedb_store.keyword_search(["otter"], 5)
+    assert builds == [True, True]
+
+
 def test_custom_backend_owns_lifecycle_operations(custom_store):
     assert len(custom_store.get_all_entries()) == 3
     custom_store.optimize()
