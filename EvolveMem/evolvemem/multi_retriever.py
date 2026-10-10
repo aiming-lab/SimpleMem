@@ -504,7 +504,7 @@ def _apply_time_decay(
     half_life_days: float,
     reference_date: str | None,
 ) -> list[tuple[int, float]]:
-    """Multiply scores by exp(-age_days / half_life)."""
+    """Apply exp(-age_days / half_life) and rank by the decayed scores."""
     from datetime import datetime
 
     def _parse(s: str | None):
@@ -534,6 +534,8 @@ def _apply_time_decay(
         age_days = max(0.0, (ref - ts).total_seconds() / 86400.0)
         decay = math.exp(-age_days / half_life_days)
         out.append((i, s * decay))
+    # Rank-based fusion uses list positions rather than the score values.
+    out.sort(key=lambda item: item[1], reverse=True)
     return out
 
 
