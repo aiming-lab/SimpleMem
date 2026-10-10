@@ -365,15 +365,13 @@ class MultiViewIndex:
             for loc_key, docs in self.location_index.items():
                 if location.lower() in loc_key:
                     loc_docs |= docs
-            if loc_docs:
-                candidates = loc_docs if candidates is None else candidates & loc_docs
+            candidates = loc_docs if candidates is None else candidates & loc_docs
 
         if entities:
             ent_docs = set()
             for e in entities:
                 ent_docs |= self.entity_index.get(e.lower(), set())
-            if ent_docs:
-                candidates = ent_docs if candidates is None else candidates & ent_docs
+            candidates = ent_docs if candidates is None else candidates & ent_docs
 
         if candidates is None:
             return []
