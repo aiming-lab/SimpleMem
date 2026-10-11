@@ -130,16 +130,18 @@ class GraphRetriever:
         # Deduplicate
         seen_ids = set()
         unique_matched = []
-        for e in matched_entities[:max_entities]:
+        for e in matched_entities:
             if e.entity_id not in seen_ids:
                 seen_ids.add(e.entity_id)
                 unique_matched.append(e)
         
+        unique_matched = unique_matched[:max_entities]
         result.entities = unique_matched
         
         # Step 3: Traverse graph for related entities
-        all_entity_ids = set(e.entity_id for e in unique_matched)
-        related_with_path = []
+        seed_entity_ids = set(e.entity_id for e in unique_matched)
+        all_entity_ids = set(seed_entity_ids)
+        related_by_id = {}
         
         for seed_entity in unique_matched:
             neighbors = self.kg.get_neighbors(
@@ -148,14 +150,16 @@ class GraphRetriever:
             )
             
             for neighbor_id, (neighbor, hops) in neighbors.items():
-                if neighbor and neighbor_id not in all_entity_ids:
-                    # Find path description
-                    path = self._get_path_description(seed_entity.entity_id, neighbor_id)
-                    related_with_path.append((neighbor, hops, path))
+                if neighbor and neighbor_id not in seed_entity_ids:
+                    previous = related_by_id.get(neighbor_id)
+                    if previous is None or hops < previous[1]:
+                        # A later seed can provide a shorter route to this entity.
+                        path = self._get_path_description(seed_entity.entity_id, neighbor_id)
+                        related_by_id[neighbor_id] = (neighbor, hops, path)
                     all_entity_ids.add(neighbor_id)
         
         # Sort by hop distance
-        related_with_path.sort(key=lambda x: x[1])
+        related_with_path = sorted(related_by_id.values(), key=lambda x: x[1])
         result.related_entities = related_with_path[:max_entities * 2]
         
         # Step 4: Collect relations
