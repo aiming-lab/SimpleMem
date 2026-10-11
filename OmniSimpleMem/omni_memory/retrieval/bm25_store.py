@@ -62,13 +62,15 @@ class BM25Store:
         Returns:
             Number of documents indexed
         """
+        self._index = None
+        self._built = False
+        self._mau_ids = []
+        self._corpus = []
+
         BM25Class = _get_bm25_class()
         if BM25Class is None:
             logger.warning("BM25 unavailable, skipping index build")
             return 0
-
-        self._mau_ids = []
-        self._corpus = []
 
         for mau in mau_store.iter_all():
             # Skip archived MAUs
@@ -127,7 +129,7 @@ class BM25Store:
         Returns:
             List of (mau_id, bm25_score) tuples, sorted by score descending
         """
-        if not self._built or self._index is None:
+        if top_k <= 0 or not self._built or self._index is None:
             return []
 
         tokens = _tokenize(query)
@@ -136,11 +138,11 @@ class BM25Store:
 
         scores = self._index.get_scores(tokens)
 
-        # Get top_k * 2 candidates (to allow for filtering)
+        # Apply filters before limiting the result count. Any fixed candidate
+        # window can omit matching memories when higher-ranked ones fail filters.
         import numpy as np
 
-        n_candidates = min(top_k * 2, len(scores))
-        top_indices = np.argsort(scores)[::-1][:n_candidates]
+        top_indices = np.argsort(scores)[::-1]
 
         results = []
         for idx in top_indices:
@@ -154,7 +156,7 @@ class BM25Store:
             # Apply tag filter if provided
             if tags_filter and mau_store:
                 mau = mau_store.get(mau_id)
-                if mau and not any(
+                if mau is None or not any(
                     tag in (mau.metadata.tags or []) for tag in tags_filter
                 ):
                     continue
