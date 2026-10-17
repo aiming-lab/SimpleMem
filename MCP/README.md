@@ -163,6 +163,13 @@ Add to your MCP JSON settings:
 }
 ```
 
+### Web research with long-term memory
+
+Pair SimpleMem with an optional web search server in Cursor to research current
+information, save selected findings with source URLs and retrieval dates, and
+recall them in later conversations. See the
+[Parallel Search MCP workflow](../docs/research-memory.md) for configuration and
+example prompts.
 
 ## How It Works
 
